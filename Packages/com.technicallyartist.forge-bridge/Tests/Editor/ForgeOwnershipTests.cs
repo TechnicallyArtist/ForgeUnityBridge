@@ -68,6 +68,18 @@ namespace ForgeBridge.Editor.Tests
         }
 
         [Test]
+        public void Metadata_WriteLeavesAssetDatabaseInSyncWithMetaFile()
+        {
+            // A .meta written without a reimport leaves the asset database's record stale; Unity's
+            // preview worker then fails with "Build asset version error" until something reimports it.
+            ForgeSource.Write(PrefabPath, projectId, "node");
+            var written = AssetDatabase.GetAssetDependencyHash(PrefabPath);
+            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+            Assert.That(AssetDatabase.GetAssetDependencyHash(PrefabPath), Is.EqualTo(written));
+            Assert.That(ForgeSource.Read(AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath))?.ProjectId, Is.EqualTo(projectId));
+        }
+
+        [Test]
         public void Identity_DuplicateBasePrefabRefusesWhileVariantIsAllowed()
         {
             ForgeSource.Write(PrefabPath, projectId, "node");

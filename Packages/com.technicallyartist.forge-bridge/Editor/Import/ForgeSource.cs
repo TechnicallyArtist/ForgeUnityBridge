@@ -36,8 +36,12 @@ namespace ForgeBridge.Editor.Import
             try { data = string.IsNullOrEmpty(importer.userData) ? new JObject() : JObject.Parse(importer.userData); }
             catch (Newtonsoft.Json.JsonException) { throw new InvalidOperationException("The prefab contains non-JSON user metadata. Forge cannot replace it."); }
             data["forgeBridge"] = new JObject { ["projectId"] = projectId, ["nodeId"] = nodeId };
-            importer.userData = data.ToString(Newtonsoft.Json.Formatting.None);
-            AssetDatabase.WriteImportSettingsIfDirty(prefabPath);
+            string userData = data.ToString(Newtonsoft.Json.Formatting.None);
+            if (userData == importer.userData) return;
+            importer.userData = userData;
+            // Writing only the .meta leaves the asset database's record stale, and Unity's preview
+            // worker then fails with "Build asset version error". Reimport so both agree.
+            importer.SaveAndReimport();
         }
     }
 

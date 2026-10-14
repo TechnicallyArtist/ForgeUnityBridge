@@ -5,7 +5,8 @@
 `ForgeBridge.Editor.Tests` covers handshake status codes, strict origin/Host gates,
 masked and fragmented frames, limits, sessions, port reuse, native import,
 identity collisions, GUID preservation, Variants, user material assignments,
-pipeline channel packing and Animator Controller ownership.
+pipeline channel packing and Animator Controller ownership. It also checks that writing
+a prefab's Forge identity leaves the asset database in sync with its `.meta`.
 
 `ForgeAnimatorPersistenceTests` verifies native graph subassets before any global save,
 unloads/reimports the controller, and enters Play mode to check default Idle and hair
