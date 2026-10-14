@@ -23,5 +23,6 @@ newer editor. The CI workflow runs the package in fresh projects on a licensed
 Windows self-hosted runner labelled `forge-unity`, with both editor versions
 installed at `E:/Unity/<version>/Editor/Unity.exe`.
 
-Release publishing, remote setup and production smoke are tracked by PRO-292.
-The repository has not been published by this implementation.
+The private repository is [TechnicallyArtist/ForgeUnityBridge](https://github.com/TechnicallyArtist/ForgeUnityBridge).
+Release validation and production smoke are tracked by PRO-292 and the
+[validation record](Packages/com.technicallyartist.forge-bridge/Documentation~/validation.md).

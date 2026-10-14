@@ -13,15 +13,14 @@ and Newtonsoft.Json for strict protocol headers.
 ## Installation
 
 For local development, Package Manager > Add package from disk: select this
-folder's `package.json`. After PRO-292 publishes the private repository and tag,
-authenticated users can install from this git URL:
+folder's `package.json`. Authenticated users with access to the private
+repository can install release 0.1.0 from this git URL:
 
 ```
 https://github.com/TechnicallyArtist/ForgeUnityBridge.git?path=Packages/com.technicallyartist.forge-bridge#0.1.0
 ```
 
-The URL is the planned release destination; publication requires the owner's
-approval. Open **Project Settings > Forge** to set the Forge folder, listener
+Open **Project Settings > Forge** to set the Forge folder, listener
 port range (default 7042–7049) and payload cap (at most 256 MiB).
 
 ## Native assets and refresh

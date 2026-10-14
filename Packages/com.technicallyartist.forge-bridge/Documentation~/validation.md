@@ -1,7 +1,8 @@
 # Implementation validation — 2026-10-14
 
-PRO-287 through PRO-291 are implemented locally. PRO-292's publication and
-production acceptance remain pending; see [release checks](release-checks.md).
+PRO-287 through PRO-291 are implemented. The owner approved private repository
+creation, publishing and remaining release work on 2026-10-14. PRO-292's release
+checks are tracked in [release checks](release-checks.md).
 
 ## Automated evidence
 
@@ -47,9 +48,11 @@ textured-character/Play checks in PRO-292. Those checks remain open.
 
 ## Release state
 
-The package is 0.1.0 unreleased. No remote, push, tag, release or deployment was
-created by this implementation. Follow-ups are filed as PRO-293 (auto-push),
-PRO-294 (Humanoid), PRO-295 (Unreal migration) and PRO-296 (public distribution).
+The private [ForgeUnityBridge repository](https://github.com/TechnicallyArtist/ForgeUnityBridge)
+now contains the implementation and LFS fixtures. Version 0.1.0 is undergoing
+tagged-installation and remote CI checks before the GitHub release is published.
+Follow-ups are filed as PRO-293 (auto-push), PRO-294 (Humanoid), PRO-295 (Unreal
+migration) and PRO-296 (public distribution).
 
 Prefab identity uses importer metadata plus ForgeIndex, as explicitly approved
 by the owner; [ADR 0001](adr/0001-editor-only-identity.md) records the reason.
