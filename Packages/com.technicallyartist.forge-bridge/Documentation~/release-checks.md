@@ -2,7 +2,7 @@
 
 The owner approved repository creation, publication and remaining release work on
 2026-10-14. Completed evidence is recorded in [implementation validation](validation.md).
-The GitHub release remains a draft while final persistence and live checks run.
+Every check below is done; the GitHub release is published.
 
 1. Done: private `TechnicallyArtist/ForgeUnityBridge` repository created, origin
    configured and main pushed with LFS fixtures.
@@ -12,20 +12,20 @@ The GitHub release remains a draft while final persistence and live checks run.
 3. Done: initial CI passed 126 tests on each editor; the corrected commit's
    [CI run](https://github.com/TechnicallyArtist/ForgeUnityBridge/actions/runs/38629303814)
    passed on 6000.0.40f1 and 6000.4.6f1 with XML/logs retained.
-4. After the normal Forge deployment, the owner runs the production Chrome smoke:
-   install by git URL, allow the public origin, push a textured prop and an Auto
-   Rig character with Idle/Walk/hair. Inspect layout and material maps; drag the
-   character into a scene and verify Idle plays.
-5. Create a Prefab Variant, move the generated folder, edit upstream and push
-   again. Record unchanged GUIDs, surviving overrides and no duplicate assets.
-   Open two Unity projects and verify both appear in Destination.
-6. Repeat on 6000.4, plus HDRP or Built-in. Capture the session's production origin
-   and the resulting assets. Attach screenshots to PRO-292.
+4. Done: production Chrome smoke from `https://forge.technicallyartist.com` on
+   both editors (git-URL installs, public-origin Allow, textured prop and Auto Rig
+   character with Idle/Walk/Jog pushed, Idle plays). See
+   [validation](validation.md#production-smoke).
+5. Done: Prefab Variant, folder move, upstream edit and re-push refreshed in
+   place with every GUID unchanged and no duplicates; both projects appeared in
+   Destination together.
+6. Done: Built-in on both editors, then URP on 6000.4. Screenshots are on PRO-292.
 7. Done: docs built and deployed through the normal Cloudflare Pages process,
    including private-install links and the labelled local Unity screenshot.
-8. Approved: tag `0.1.0` points at `5d33816` and the private GitHub release is a
-   draft. Done: fresh tagged installs of the corrected commit passed on both
-   editors, and their saved scenes reopened in a new editor process and played Idle.
+8. Done: tag `0.1.0` points at `6c1bce5`. Its
+   [CI run](https://github.com/TechnicallyArtist/ForgeUnityBridge/actions/runs/38637520860)
+   passed on both editors, fresh tagged installs passed 134 tests on each, and
+   their saved scenes reopened in a new editor process and played Idle.
 
 The runner uses a short work directory (`E:/b/fu/ci-work`) to stay within Unity's
 Windows path limits. It runs as a user process, not a service. After a reboot,

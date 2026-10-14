@@ -6,9 +6,9 @@ checks are tracked in [release checks](release-checks.md).
 
 ## Automated evidence
 
-- Unity 6000.0.40f1: 132 EditMode tests passed, zero skipped. The host remains
+- Unity 6000.0.40f1: 133 EditMode tests passed, zero skipped. The host remains
   pinned to this version.
-- Unity 6000.4.6f1: 132 EditMode tests passed, zero skipped, in the separate
+- Unity 6000.4.6f1: 133 EditMode tests passed, zero skipped, in the separate
   `E:/b/fu/probe-6000.4` project.
 - Transport tests exercise real loopback sockets, handshake/consent refusal,
   framing and payload limits, concurrent sessions, port reuse, and bounded
@@ -51,6 +51,11 @@ character imported twice with unchanged GUIDs, and Play started Idle with hips a
 hair moving. A second editor process reopened the saved scene without importing
 again, kept every GUID, and Idle played again with the same motion.
 
+The same checks were repeated for the final tag at `6c1bce5` (the identity
+reimport fix below): [CI run](https://github.com/TechnicallyArtist/ForgeUnityBridge/actions/runs/38637520860)
+passed on both editors, and fresh installs passed 134 tests each (133 shipped plus
+the smoke harness) with the reopen check and zero import-worker errors.
+
 ## Live development smoke
 
 Chrome at `http://localhost:5184` connected to the floor editor's Built-in host.
@@ -67,15 +72,39 @@ Forge Engine Output documentation and explicitly labelled as a local smoke.
 The Forge app at commit `51a8eba7` is now deployed to the production site. The
 production Chrome destination picker listed both fresh Git-install projects at
 once, and switching between 6000.0.40f1 and 6000.4.6f1 connected to each. The owner
-accepted both editors' public-origin Allow dialogs. Asset pushes and visual
-textured-character/Play checks remain in progress under PRO-292.
+accepted both editors' public-origin Allow dialogs.
+
+## Production smoke
+
+On 2026-10-14, Chrome at `https://forge.technicallyartist.com` pushed into two open
+projects that installed `#0.1.0` by Git URL (6000.0.40f1 and 6000.4.6f1, Built-in).
+Both appeared in Destination at once; Window ▸ Forge showed the listening port, the
+public-origin session and the Allow dialog.
+
+- The Paint Fill cube created `Assets/Forge/Unity Prop Smoke/` with the prefab, a
+  mesh, a Standard material and its base color, metal-rough and emissive PNGs.
+- The sample character (Auto Rig with Idle, Walk and Jog) created the prefab,
+  avatar, material, four PNGs, three `.anim` clips and a controller whose
+  Idle/Walk/Jog graph is saved on disk. Dragged into a scene, it played Idle on
+  both editors.
+- On 6000.0 a saved scene instance, a Prefab Variant and a move of the folder to
+  `Assets/Characters/` survived an upstream change (Target triangles 20,000 →
+  15,000) and a push: Forge reported `Assets/Characters/…/SampleCharacter.prefab
+  (refreshed)`, all 16 asset and folder GUIDs were unchanged, the mesh was
+  rewritten and nothing was duplicated under `Assets/Forge/`.
+- On 6000.4 the default pipeline was then switched to URP. Pushing again refreshed
+  the cube's material to URP Lit with its three maps.
+
+The smoke found one defect, now fixed in `6c1bce5`: the first push of a prefab
+saved its Forge identity in the `.meta` without a reimport, so Unity's preview
+worker logged `Import Error Code:(4)` until the prefab was reimported. After the
+fix, a first push on 6000.4 rendered the thumbnail with zero import errors.
 
 ## Release state
 
 The private [ForgeUnityBridge repository](https://github.com/TechnicallyArtist/ForgeUnityBridge)
-now contains the implementation and LFS fixtures. Controller persistence is fixed
-and verified from the tagged install. Version 0.1.0 remains a draft until the
-owner's production smoke pushes finish.
+now contains the implementation and LFS fixtures. Version 0.1.0 (tag at
+`6c1bce5`) is published as a private GitHub release.
 The [Engine Output guide](https://docs.forge.technicallyartist.com/nodes/utility/engine-output/)
 is deployed with private-install instructions and the labelled local screenshot.
 Its source is Forge commit `51a8eba7` plus the guide-only patch with SHA-256
