@@ -233,6 +233,7 @@ namespace ForgeBridge.Editor.Import
                             EditorUtility.SetDirty(index);
                         }
                         finally { AssetDatabase.StopAssetEditing(); }
+                        if (rigged && !customController) ForgeAnimator.Finish(entry.Get<AnimatorController>("controller"));
                         foreach (var material in prepared.Values) material.Finish();
                         foreach (var pair in paths.Where(p => p.Key.StartsWith("texture/", StringComparison.Ordinal))) entry.Set(pair.Key, AssetDatabase.LoadAssetAtPath<Texture2D>(pair.Value));
                         entry.Prefab = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);

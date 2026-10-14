@@ -7,6 +7,11 @@ masked and fragmented frames, limits, sessions, port reuse, native import,
 identity collisions, GUID preservation, Variants, user material assignments,
 pipeline channel packing and Animator Controller ownership.
 
+`ForgeAnimatorPersistenceTests` verifies native graph subassets before any global save,
+unloads/reimports the controller, and enters Play mode to check default Idle and hair
+motion. It also covers graph local IDs, appended states, dirty-transition rollback,
+foreign state-machine ownership, and unrelated unsaved assets.
+
 The small triangle fixture is generated in `ForgeImportTests`. Character fixture
 files under the package's [`Fixtures/`](../../Fixtures/) are exported from Forge's Auto Rig/animation/hair path;
 their expected joint samples come from Forge's pose evaluator. Binary fixtures

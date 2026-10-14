@@ -1,15 +1,16 @@
 # Release 0.1.0 checks (PRO-292)
 
-The implementation is prepared locally. This checklist does not claim publication
-or a production smoke has happened.
+The owner approved repository creation, publication and remaining release work on
+2026-10-14. Completed evidence is recorded in [implementation validation](validation.md).
+The GitHub release remains a draft while final persistence and live checks run.
 
-1. Obtain approval to create the private `TechnicallyArtist/ForgeUnityBridge`
-   repository, add origin and push main. Do not make the repository public.
-2. Register a licensed Windows self-hosted runner for this repository with label
-   `forge-unity`. Both Unity versions must be installed at the paths used by the
-   test script. The Unreal runner is registered to its own repository and cannot
-   be silently reused.
-3. Run the EditMode workflow on 6000.0.40f1 and 6000.4.6f1; retain XML and logs.
+1. Done: private `TechnicallyArtist/ForgeUnityBridge` repository created, origin
+   configured and main pushed with LFS fixtures.
+2. Done: dedicated licensed Windows runner registered with label `forge-unity`.
+   Both Unity versions are installed at the test script's paths. This runner is
+   separate from the Unreal repository's runner.
+3. Initial CI passed 126 tests on each editor. Rerun the corrected release on
+   6000.0.40f1 and 6000.4.6f1 and retain XML/logs.
 4. After the normal Forge deployment, the owner runs the production Chrome smoke:
    install by git URL, allow the public origin, push a textured prop and an Auto
    Rig character with Idle/Walk/hair. Inspect layout and material maps; drag the
@@ -19,9 +20,17 @@ or a production smoke has happened.
    Open two Unity projects and verify both appear in Destination.
 6. Repeat on 6000.4, plus HDRP or Built-in. Capture the session's production origin
    and the resulting assets. Attach screenshots to PRO-292.
-7. Build the docs site. The owner deploys it through the normal process.
-8. Obtain approval to create tag `0.1.0` and publish the private GitHub release.
-   Verify installation with the tag in a fresh project.
+7. Done: docs built and deployed through the normal Cloudflare Pages process,
+   including private-install links and the labelled local Unity screenshot.
+8. Approved: tag `0.1.0` exists and the private GitHub release is a draft. Fresh
+   tagged installs worked on both editors; repeat after the controller fix and
+   verify saved assets reopen and play before publishing.
+
+The runner uses a short work directory (`E:/b/fu/ci-work`) to stay within Unity's
+Windows path limits. It runs as a user process, not a service. After a reboot,
+start `E:/Gamedev/FAB/Publish/actions-runner-forge-unity/Start-UnityRunner.ps1`.
+The adjacent `UNITY-RUNNER-README.md` records local restart instructions. No
+system PATH or Windows service configuration was changed.
 
 Deferred scope is filed: PRO-293 automatic pushes, PRO-294 Humanoid avatars,
 PRO-295 migration of Unreal onto Engine Output, and PRO-296 public distribution.

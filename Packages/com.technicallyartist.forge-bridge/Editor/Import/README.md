@@ -16,7 +16,11 @@ assets without a second axis conversion.
 - `ForgeSource`: prefab authoring identity in namespaced importer metadata.
 - `ForgeAssetWriter`: in-place serialized updates and disk restoration on failure.
 - `ForgeAnimator`: create once and append missing clip states; custom assignments
-  bypass controller edits entirely.
+  bypass controller edits entirely. After the batch, it explicitly attaches new graph
+  objects to the owned controller before the scoped save: Unity cannot resolve a new
+  controller's path during StartAssetEditing, so its normal AddLayer/AddState attachment
+  is deferred. Existing graph objects and local IDs remain unchanged. Missing graph data
+  is refused with a restore/recreate explanation instead of replacing user work.
 
 One StartAssetEditing/StopAssetEditing block writes a push's native assets, with
 Stop in a finally block. Texture imports and reference binding complete afterward
