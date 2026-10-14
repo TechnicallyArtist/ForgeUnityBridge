@@ -1,0 +1,41 @@
+# Unity host project (generated — never commit)
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+/[Mm]emoryCaptures/
+/[Rr]ecordings/
+
+# Test runs (batchmode -testResults output goes here)
+/TestResults/
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.csproj
+*.sln
+*.suo
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+
+# Crash / OS
+sysinfo.txt
+mono_crash.*
+crashlytics-buildid.txt
+.DS_Store
+Thumbs.db
+
+# Smoke-test leftovers in the host: everything a push writes lands under Assets/Forge/
+/[Aa]ssets/[Ff]orge/
+/[Aa]ssets/[Ff]orge.meta
