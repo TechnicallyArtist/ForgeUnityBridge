@@ -1,0 +1,10 @@
+{
+  "name": "ForgeBridge.Editor.Tests",
+  "rootNamespace": "ForgeBridge.Editor.Tests",
+  "references": ["ForgeBridge.Editor", "glTFast"],
+  "overrideReferences": true,
+  "precompiledReferences": ["nunit.framework.dll", "Newtonsoft.Json.dll"],
+  "includePlatforms": ["Editor"],
+  "optionalUnityReferences": ["TestAssemblies"],
+  "autoReferenced": false
+}

@@ -1,0 +1,34 @@
+# Native asset import
+
+[Package overview](../../README.md)
+
+`ForgeImporter` serializes main-thread pushes. It validates the envelope and glb,
+detects the active pipeline, prepares all assets in a preview scene, resolves all
+output paths and refuses foreign collisions before writing. glTFast loads bytes
+in memory; its meshes, hierarchy, skinning and transform curves supply the native
+assets without a second axis conversion.
+
+- `ForgeGlb`: [self-contained GLB checks, bounds and path safety](SECURITY.md).
+- `ForgeGltfMaterialGenerator` (in `ForgeMaterials.cs`): transient stock materials identify glTF slots
+  without requiring glTFast runtime shaders.
+- `ForgeMaterials`: [stock pipeline translation and map packing](MATERIALS.md).
+- `ForgeIndex`: identity-first lookup, GUID-backed ownership and safe paths.
+- `ForgeSource`: prefab authoring identity in namespaced importer metadata.
+- `ForgeAssetWriter`: in-place serialized updates and disk restoration on failure.
+- `ForgeAnimator`: create once and append missing clip states; custom assignments
+  bypass controller edits entirely.
+
+One StartAssetEditing/StopAssetEditing block writes a push's native assets, with
+Stop in a finally block. Texture imports and reference binding complete afterward
+because Unity defers PNG import while asset editing is paused. The ownership index
+is saved only with the complete prefab. Failed writes restore original files/metas
+and reimport them. Removed animations and controllers are pruned only after saved
+asset dependencies, open scenes, Prefab Stage and unsaved controllers have been checked.
+
+Material overrides retain their prior numeric slot for reading the saved prefab,
+and match the refreshed renderer by transform path, source material name and
+occurrence. Reordering named material slots therefore preserves their assignments.
+The generated base hierarchy uses deterministic unique names so Unity can match
+prefab objects on refresh. Duplicate base-prefab identities are refused; use a
+Variant for custom copies. Losing the ownership index causes an explicit refusal
+instead of guessing which assets Forge may overwrite.

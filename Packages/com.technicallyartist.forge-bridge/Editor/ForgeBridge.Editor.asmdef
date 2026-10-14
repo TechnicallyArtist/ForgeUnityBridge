@@ -1,0 +1,9 @@
+{
+  "name": "ForgeBridge.Editor",
+  "rootNamespace": "ForgeBridge.Editor",
+  "references": ["glTFast"],
+  "overrideReferences": true,
+  "precompiledReferences": ["Newtonsoft.Json.dll"],
+  "includePlatforms": ["Editor"],
+  "autoReferenced": true
+}

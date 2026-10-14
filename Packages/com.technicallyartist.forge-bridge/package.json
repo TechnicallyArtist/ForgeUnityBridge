@@ -1,0 +1,14 @@
+{
+  "name": "com.technicallyartist.forge-bridge",
+  "version": "0.1.0",
+  "displayName": "Forge Bridge for Unity",
+  "description": "Push native meshes, materials and animated characters from Forge into the Unity Editor.",
+  "unity": "6000.0",
+  "author": { "name": "Technically Artist", "url": "https://technicallyartist.com" },
+  "dependencies": {
+    "com.unity.cloud.gltfast": "6.14.0",
+    "com.unity.nuget.newtonsoft-json": "3.2.1",
+    "com.unity.modules.animation": "1.0.0",
+    "com.unity.modules.imageconversion": "1.0.0"
+  }
+}

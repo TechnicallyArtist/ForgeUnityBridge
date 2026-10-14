@@ -1,0 +1,35 @@
+name: Unity EditMode
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: unity-editmode-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  editmode:
+    runs-on: [self-hosted, Windows, X64, forge-unity]
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        unity: ['6000.0.40f1', '6000.4.6f1']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+      - name: Test package in a fresh project
+        shell: pwsh
+        run: >-
+          ./scripts/Test-EditMode.ps1 -Version '${{ matrix.unity }}'
+          -ProjectPath '${{ runner.temp }}/forge-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.unity }}'
+          -ResultsPath '${{ github.workspace }}/TestResults' -CreateProbe
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: editmode-${{ matrix.unity }}
+          path: TestResults/
