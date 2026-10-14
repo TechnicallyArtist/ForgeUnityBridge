@@ -9,8 +9,9 @@ The GitHub release remains a draft while final persistence and live checks run.
 2. Done: dedicated licensed Windows runner registered with label `forge-unity`.
    Both Unity versions are installed at the test script's paths. This runner is
    separate from the Unreal repository's runner.
-3. Initial CI passed 126 tests on each editor. Rerun the corrected release on
-   6000.0.40f1 and 6000.4.6f1 and retain XML/logs.
+3. Done: initial CI passed 126 tests on each editor; the corrected commit's
+   [CI run](https://github.com/TechnicallyArtist/ForgeUnityBridge/actions/runs/38629303814)
+   passed on 6000.0.40f1 and 6000.4.6f1 with XML/logs retained.
 4. After the normal Forge deployment, the owner runs the production Chrome smoke:
    install by git URL, allow the public origin, push a textured prop and an Auto
    Rig character with Idle/Walk/hair. Inspect layout and material maps; drag the
@@ -22,9 +23,9 @@ The GitHub release remains a draft while final persistence and live checks run.
    and the resulting assets. Attach screenshots to PRO-292.
 7. Done: docs built and deployed through the normal Cloudflare Pages process,
    including private-install links and the labelled local Unity screenshot.
-8. Approved: tag `0.1.0` exists and the private GitHub release is a draft. Fresh
-   tagged installs worked on both editors; repeat after the controller fix and
-   verify saved assets reopen and play before publishing.
+8. Approved: tag `0.1.0` points at `5d33816` and the private GitHub release is a
+   draft. Done: fresh tagged installs of the corrected commit passed on both
+   editors, and their saved scenes reopened in a new editor process and played Idle.
 
 The runner uses a short work directory (`E:/b/fu/ci-work`) to stay within Unity's
 Windows path limits. It runs as a user process, not a service. After a reboot,

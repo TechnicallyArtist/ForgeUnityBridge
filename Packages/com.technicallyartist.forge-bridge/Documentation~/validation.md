@@ -39,9 +39,17 @@ had deferred registration of the new controller's state-machine subassets.
 The importer now attaches those objects after the batch and before its scoped save.
 Six additional regressions verify serialized graph reload, automatic Idle playback
 and hips/hair motion, stable GUIDs/local IDs, user graph preservation, dirty-state
-rollback, foreign ownership and refusal of missing graph data. The release remains
-a draft while corrected release CI and tagged-install smoke finish. The full local
+rollback, foreign ownership and refusal of missing graph data. The full local
 matrix passed 132 tests on each editor; reports are in `TestResults/animator-fixed/`.
+The corrected commit's [CI run](https://github.com/TechnicallyArtist/ForgeUnityBridge/actions/runs/38629303814)
+passed on both editors.
+
+Fresh projects then installed `#0.1.0` (commit `5d33816`) from the private Git
+repository on both editors. Each ran the shipped suite plus the tagged smoke
+harness (133 tests, zero failures or skips): the textured prop and the Idle/Walk/hair
+character imported twice with unchanged GUIDs, and Play started Idle with hips and
+hair moving. A second editor process reopened the saved scene without importing
+again, kept every GUID, and Idle played again with the same motion.
 
 ## Live development smoke
 
@@ -65,8 +73,9 @@ textured-character/Play checks remain in progress under PRO-292.
 ## Release state
 
 The private [ForgeUnityBridge repository](https://github.com/TechnicallyArtist/ForgeUnityBridge)
-now contains the implementation and LFS fixtures. Version 0.1.0 remains a draft
-until its corrected controller persistence and final smoke checks are verified.
+now contains the implementation and LFS fixtures. Controller persistence is fixed
+and verified from the tagged install. Version 0.1.0 remains a draft until the
+owner's production smoke pushes finish.
 The [Engine Output guide](https://docs.forge.technicallyartist.com/nodes/utility/engine-output/)
 is deployed with private-install instructions and the labelled local screenshot.
 Its source is Forge commit `51a8eba7` plus the guide-only patch with SHA-256
