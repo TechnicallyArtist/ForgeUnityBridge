@@ -253,11 +253,36 @@ namespace ForgeBridge.Editor.Tests
                     {
                         await client.ConnectAsync(IPAddress.Loopback, port);
                         await Write(client, Encoding.ASCII.GetBytes(Request(port)));
-                        Assert.That(await ReadHttp(client), Does.StartWith("HTTP/1.1 403"));
+                        // A Deny completes the upgrade only to say so: a browser cannot read a 403.
+                        Assert.That(await ReadHttp(client), Does.StartWith("HTTP/1.1 101"));
+                        var denied = await ReadMessage(client);
+                        Assert.That((string)denied["reason"], Is.EqualTo("origin"));
+                        Assert.That((string)denied["message"], Is.EqualTo(ForgeServer.OriginDeniedMessage));
+                        var close = await ReadFrame(client);
+                        Assert.That(close.Item1, Is.EqualTo(8));
+                        Assert.That(close.Item2[0] << 8 | close.Item2[1], Is.EqualTo(1008));
                     }
                 }
                 Assert.That(server.ConsentCalls, Is.EqualTo(2));
             }
+        }
+
+        [Test]
+        public void Consent_RemembersDenyForTheEditorSessionUntilCleared()
+        {
+            const string origin = "http://localhost:4999";
+            Assume.That(BridgeUserState.instance.IsAllowed(origin), Is.False);
+            try
+            {
+                Assert.That(BridgeService.RememberedConsent(origin), Is.Null);
+                BridgeService.RememberDenied(origin);
+                BridgeService.RememberDenied(origin);
+                Assert.That(BridgeService.RememberedConsent(origin), Is.False);
+                Assert.That(BridgeService.DeniedOrigins.Count(item => item == origin), Is.EqualTo(1));
+                BridgeService.ClearDenied(origin);
+                Assert.That(BridgeService.RememberedConsent(origin), Is.Null);
+            }
+            finally { BridgeService.ClearDenied(origin); }
         }
 
         [Test]

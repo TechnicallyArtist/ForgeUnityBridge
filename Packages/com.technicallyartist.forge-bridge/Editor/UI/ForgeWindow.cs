@@ -56,6 +56,21 @@ namespace ForgeBridge.Editor
                     if (GUILayout.Button("Revoke", GUILayout.Width(65))) BridgeService.Revoke(origin);
                 }
             }
+            var denied = BridgeService.DeniedOrigins.ToArray();
+            if (denied.Length > 0)
+            {
+                EditorGUILayout.Space();
+                EditorGUILayout.LabelField("Denied origins", EditorStyles.boldLabel);
+                EditorGUILayout.LabelField("Refused without asking until Unity restarts. Clear one to be asked again.", EditorStyles.wordWrappedMiniLabel);
+                foreach (var origin in denied)
+                {
+                    using (new EditorGUILayout.HorizontalScope(EditorStyles.helpBox))
+                    {
+                        EditorGUILayout.LabelField(origin, EditorStyles.wordWrappedLabel);
+                        if (GUILayout.Button("Clear", GUILayout.Width(65))) BridgeService.ClearDenied(origin);
+                    }
+                }
+            }
             EditorGUILayout.Space();
             EditorGUILayout.LabelField("Recent events", EditorStyles.boldLabel);
             foreach (var entry in BridgeUserState.instance.Events)

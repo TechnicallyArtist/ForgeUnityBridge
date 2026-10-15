@@ -116,6 +116,8 @@ namespace ForgeBridge.Editor
             }
         }
 
+        public const string OriginDeniedMessage = "Denied in Unity. To be asked again, clear it under Denied origins in Window > Forge.";
+
         public void Revoke(string origin)
         {
             foreach (var connection in connections.Values)
@@ -236,7 +238,7 @@ namespace ForgeBridge.Editor
                             lifetime.Token.ThrowIfCancellationRequested();
                         }
                         if (client.Available > 0) return await RefuseAsync(400, "data before the upgrade completed").ConfigureAwait(false);
-                        if (!await approval.ConfigureAwait(false)) return await RefuseAsync(403, "the user denied this origin").ConfigureAwait(false);
+                        if (!await approval.ConfigureAwait(false)) return await DenyOriginAsync(decision).ConfigureAwait(false);
                         await WriteAsync(ForgeHandshake.Response(decision)).ConfigureAwait(false);
                         upgraded = true;
                         session.Origin = Origin;
@@ -245,6 +247,16 @@ namespace ForgeBridge.Editor
                         return true;
                     }
                 }
+            }
+
+            /// <summary>A browser cannot read an HTTP 403, which looks exactly like the editor going away. Completing
+            /// the upgrade only to send `denied` `origin` lets the tab tell a Deny from an editor that is not ready.</summary>
+            private async Task<bool> DenyOriginAsync(HandshakeDecision decision)
+            {
+                await WriteAsync(ForgeHandshake.Response(decision)).ConfigureAwait(false);
+                upgraded = true;
+                await DenyAsync("origin", OriginDeniedMessage).ConfigureAwait(false);
+                return false;
             }
 
             private async Task<bool> RefuseAsync(int status, string reason)

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
@@ -22,12 +23,16 @@ namespace ForgeBridge.Editor
         private static readonly Dictionary<string, BridgeSession> SessionRows = new Dictionary<string, BridgeSession>();
         private static readonly SemaphoreSlim ImportGate = new SemaphoreSlim(1, 1);
         private static readonly int MainThreadId = Thread.CurrentThread.ManagedThreadId;
+        private const string DeniedOriginsKey = "ForgeBridge.DeniedOrigins";
         private static ForgeServer server;
         private static int generation;
         public static int ListenerPort { get; private set; }
         public static string ListenerReason { get; private set; } = "starting";
         public static IEnumerable<BridgeSession> Sessions => SessionRows.Values;
         public static event Action Changed;
+        public const string PluginVersion = "0.1.1";
+        /// <summary>Origins denied since the editor started. SessionState survives domain reloads, not a restart.</summary>
+        public static IEnumerable<string> DeniedOrigins => SessionState.GetString(DeniedOriginsKey, "").Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries);
         public static string ListenerState => ListenerPort > 0 ? "listening on 127.0.0.1:" + ListenerPort : "not listening: " + ListenerReason;
 
         static BridgeService()
@@ -53,7 +58,7 @@ namespace ForgeBridge.Editor
             ListenerReason = "starting";
             var current = generation;
             var info = ForgeProtocol.Welcome(null, ProjectIdentity(PlayerSettings.productGUID.ToString(), Path.GetFullPath(".")),
-                PlayerSettings.productName, Application.unityVersion, "0.1.0");
+                PlayerSettings.productName, Application.unityVersion, PluginVersion);
             server = new ForgeServer(settings.FirstPort, settings.LastPort, settings.PayloadCapMiB * 1024 * 1024, info,
                 AskConsentAsync, ImportOnMainThreadAsync,
                 (message, error) => EnqueueCurrent(current, () => RecordEvent(message, error)),
@@ -100,6 +105,18 @@ namespace ForgeBridge.Editor
             RecordEvent("revoked " + origin, false);
         }
 
+        public static void RememberDenied(string origin)
+        {
+            if (!DeniedOrigins.Contains(origin)) SessionState.SetString(DeniedOriginsKey, string.Join("\n", DeniedOrigins.Append(origin)));
+            RecordEvent("denied " + origin + " until Unity restarts or it is cleared in Window > Forge", true);
+        }
+
+        public static void ClearDenied(string origin)
+        {
+            SessionState.SetString(DeniedOriginsKey, string.Join("\n", DeniedOrigins.Where(item => item != origin)));
+            RecordEvent("cleared denial of " + origin + "; it is asked again on its next connection");
+        }
+
         public static void RecordEvent(string message, bool error = false)
         {
             if (Thread.CurrentThread.ManagedThreadId != MainThreadId) { MainThreadQueue.Enqueue(() => RecordEvent(message, error)); return; }
@@ -109,11 +126,21 @@ namespace ForgeBridge.Editor
             Changed?.Invoke();
         }
 
+        /// <summary>True for an approved origin, false for one denied this editor session (answered without a
+        /// dialog, so a tab that keeps retrying cannot nag), null when the user must be asked.</summary>
+        public static bool? RememberedConsent(string origin)
+        {
+            if (BridgeUserState.instance.IsAllowed(origin)) return true;
+            if (DeniedOrigins.Contains(origin)) return false;
+            return null;
+        }
+
         private static Task<bool> AskConsentAsync(string origin, CancellationToken cancellation)
         {
             return OnMainThreadAsync(() =>
             {
-                if (BridgeUserState.instance.IsAllowed(origin)) return Task.FromResult(true);
+                var remembered = RememberedConsent(origin);
+                if (remembered.HasValue) return Task.FromResult(remembered.Value);
                 if (Application.isBatchMode) return Task.FromResult(false);
                 var allowed = EditorUtility.DisplayDialog("Allow Forge to connect?",
                     origin + "\n\nAllow this Forge origin to push assets into this Unity project?", "Allow", "Deny");
@@ -122,6 +149,7 @@ namespace ForgeBridge.Editor
                     BridgeUserState.instance.Allow(origin);
                     RecordEvent("allowed " + origin);
                 }
+                else RememberDenied(origin);
                 return Task.FromResult(allowed);
             }, cancellation);
         }

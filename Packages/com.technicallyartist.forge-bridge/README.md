@@ -3,7 +3,8 @@
 Push a mesh or animated character from Forge's **Engine Output** node into the
 open Unity project. Select the project in **Destination**, click **Send to
 Unity**, and approve the origin in Unity once. **Window > Forge** shows the
-listener, sessions, approved origins and recent results.
+listener, sessions, approved origins and recent results. A Deny lasts until Unity
+restarts or you clear it under **Window > Forge > Denied origins**.
 
 Requires Unity **6000.0+**. Development validation targets **6000.0.40f1** and
 **6000.4.6f1** on Windows. Product C# is cross-platform; other platforms still
@@ -19,7 +20,7 @@ refresh. Git must be installed for Unity to fetch it. To install by hand, use
 Package Manager > Add package from git URL:
 
 ```
-https://github.com/TechnicallyArtist/ForgeUnityBridge.git?path=Packages/com.technicallyartist.forge-bridge#0.1.0
+https://github.com/TechnicallyArtist/ForgeUnityBridge.git?path=Packages/com.technicallyartist.forge-bridge#0.1.1
 ```
 
 For local development, Package Manager > Add package from disk: select this

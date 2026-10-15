@@ -24,7 +24,9 @@ failed result, while ping, close and revoke remain responsive. The service close
 assembly reload and editor exit. Missing import handlers return an explicit failed result.
 
 Approvals and the latest 100 events persist per project/user under `UserSettings/`. Approval is
-never inferred in batchmode. Revoking an origin forgets it and sends `denied` / close to its sessions.
+never inferred in batchmode. A Deny (fresh, or remembered for this editor session) completes the
+upgrade only to send `denied` `origin` and close `1008`: a browser cannot read an HTTP 403, which
+looks the same as an editor that is still importing or reloading scripts. Revoking an origin forgets it and sends `denied` / close to its sessions.
 All refusals and push outcomes reach the Console with `[Forge]` and the Forge window's history.
 Result diagnostics are bounded to the 64 KiB protocol header limit. Long errors or warning lists
 carry an explicit truncation notice; the complete messages remain in the Unity Console. A response

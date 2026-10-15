@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.1 — 2026-10-15
+
+- Deny is remembered per origin until the editor restarts: a tab that retries is refused without
+  another dialog. **Window > Forge > Denied origins** clears one so it is asked again.
+- A Deny now completes the WebSocket upgrade and answers `denied` `origin` instead of HTTP 403,
+  so Forge can tell a Deny from an editor that is still importing or reloading scripts, and keeps
+  retrying the latter.
+
 ## 0.1.0 — 2026-10-14
 
 - Loopback discovery, per-project origin consent and Forge editor window.
