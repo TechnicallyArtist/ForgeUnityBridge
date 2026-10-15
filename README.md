@@ -21,8 +21,12 @@ the separate `E:/b/fu/probe-6000.4` project; omit `-CreateProbe` on later runs.
 Close an interactive editor using that project first. Never open this host in a
 newer editor. The CI workflow runs the package in fresh projects on a licensed
 Windows self-hosted runner labelled `forge-unity`, with both editor versions
-installed at `E:/Unity/<version>/Editor/Unity.exe`.
+installed at `E:/Unity/<version>/Editor/Unity.exe`. It runs on pushes to `main` and
+on manual dispatch only — never on pull requests, because the repository is public
+and the runner is a private machine.
 
-The private repository is [TechnicallyArtist/ForgeUnityBridge](https://github.com/TechnicallyArtist/ForgeUnityBridge).
+The public repository is [TechnicallyArtist/ForgeUnityBridge](https://github.com/TechnicallyArtist/ForgeUnityBridge).
 Release validation and production smoke are tracked by PRO-292 and the
 [validation record](Packages/com.technicallyartist.forge-bridge/Documentation~/validation.md).
+
+Released under the [MIT License](LICENSE).

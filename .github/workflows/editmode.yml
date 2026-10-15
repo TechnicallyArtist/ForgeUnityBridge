@@ -1,8 +1,9 @@
 name: Unity EditMode
+# No pull_request trigger: the repository is public and the runner is a self-hosted
+# machine, so a fork's pull request must never run code on it.
 on:
   push:
     branches: [main]
-  pull_request:
   workflow_dispatch:
 permissions:
   contents: read
