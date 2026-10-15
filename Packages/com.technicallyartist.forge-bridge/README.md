@@ -12,13 +12,18 @@ and Newtonsoft.Json for strict protocol headers.
 
 ## Installation
 
-For local development, Package Manager > Add package from disk: select this
-folder's `package.json`. Authenticated users with access to the private
-repository can install release 0.1.0 from this git URL:
+The quickest route is Forge itself: when an Engine Output node finds no Unity
+project, **Install into a Unity project…** asks for the project folder and adds
+this package to its `Packages/manifest.json`; Unity installs it on its next
+refresh. Git must be installed for Unity to fetch it. To install by hand, use
+Package Manager > Add package from git URL:
 
 ```
 https://github.com/TechnicallyArtist/ForgeUnityBridge.git?path=Packages/com.technicallyartist.forge-bridge#0.1.0
 ```
+
+For local development, Package Manager > Add package from disk: select this
+folder's `package.json`.
 
 Open **Project Settings > Forge** to set the Forge folder, listener
 port range (default 7042–7049) and payload cap (at most 256 MiB).
