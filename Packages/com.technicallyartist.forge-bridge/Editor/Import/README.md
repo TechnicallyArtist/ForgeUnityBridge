@@ -26,7 +26,7 @@ One StartAssetEditing/StopAssetEditing block writes a push's native assets, with
 Stop in a finally block. Texture imports and reference binding complete afterward
 because Unity defers PNG import while asset editing is paused. The ownership index
 is saved only with the complete prefab. Failed writes restore original files/metas
-and reimport them. Removed animations and controllers are pruned only after saved
+and reimport them. Removed Forge-owned meshes, materials, textures, animations and static-output controllers are pruned only after saved
 asset dependencies, open scenes, Prefab Stage and unsaved controllers have been checked.
 
 Material overrides retain their prior numeric slot for reading the saved prefab,
@@ -36,3 +36,13 @@ The generated base hierarchy uses deterministic unique names so Unity can match
 prefab objects on refresh. Duplicate base-prefab identities are refused; use a
 Variant for custom copies. Losing the ownership index causes an explicit refusal
 instead of guessing which assets Forge may overwrite.
+
+Textures are encoded, written and imported once per source-image recipe, including colour space,
+normal-map type and sampler settings. Packed maps include their input images, channels and baked
+factors in the key. Materials share the resulting texture asset. Shared textures use the asset
+name and role; single-material textures keep the slot name. Repeat pushes resolve keys through
+the ownership index to preserve GUIDs, including textures moved by the user.
+
+Cleanup runs after the prefab saves, materials before their unused textures. Referenced assets
+are retained with a warning; failed deletion never fails a completed push. Only folders created
+and recorded by Forge are removed when empty. User material assignments remain user-owned.

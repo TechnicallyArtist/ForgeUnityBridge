@@ -6,6 +6,9 @@ Unity**, and approve the origin in Unity once. **Window > Forge** shows the
 listener, sessions, approved origins and recent results. A Deny lasts until Unity
 restarts or you clear it under **Window > Forge > Denied origins**.
 
+Textures shared by several materials are written once. Repeat pushes remove unused Forge-owned
+meshes, materials and textures after checking references; user material assignments stay intact.
+
 Requires Unity **6000.0+**. Development validation targets **6000.0.40f1** and
 **6000.4.6f1** on Windows. Product C# is cross-platform; other platforms still
 need live validation. The package depends on Unity glTFast 6.14.0 for parsing

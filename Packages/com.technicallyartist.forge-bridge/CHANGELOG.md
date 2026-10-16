@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Share textures by source-image recipe across material slots, preserving texture GUIDs on repeat pushes.
+- Prune unused Forge-owned meshes, materials and textures after the prefab saves; retain referenced assets and user-owned folders.
+
 ## 0.1.1 — 2026-10-15
 
 - Deny is remembered per origin until the editor restarts: a tab that retries is refused without

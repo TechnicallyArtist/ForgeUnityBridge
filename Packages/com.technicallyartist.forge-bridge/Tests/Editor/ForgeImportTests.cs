@@ -132,13 +132,13 @@ namespace ForgeBridge.Editor.Tests
             ["payload"] = new JObject { ["format"] = "glb", ["bytes"] = bytes.Length }
         };
         internal static byte[] Triangle() => Binary(TriangleJson());
-        private static JObject TriangleJson() => JObject.Parse(@"{
+        internal static JObject TriangleJson() => JObject.Parse(@"{
           'asset':{'version':'2.0'}, 'scene':0, 'scenes':[{'nodes':[0]}], 'nodes':[{'name':'Triangle','mesh':0}],
           'meshes':[{'primitives':[{'attributes':{'POSITION':0},'indices':1}]}],
           'buffers':[{'byteLength':44}], 'bufferViews':[{'buffer':0,'byteOffset':0,'byteLength':36},{'buffer':0,'byteOffset':36,'byteLength':6}],
           'accessors':[{'bufferView':0,'componentType':5126,'count':3,'type':'VEC3','min':[0,0,0],'max':[1,1,0]},
             {'bufferView':1,'componentType':5123,'count':3,'type':'SCALAR'}] }");
-        private static byte[] Binary(JObject root)
+        internal static byte[] Binary(JObject root)
         {
             var json = Encoding.UTF8.GetBytes(root.ToString(Newtonsoft.Json.Formatting.None));
             int length = (json.Length + 3) & ~3;

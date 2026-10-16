@@ -72,16 +72,17 @@ namespace ForgeBridge.Editor.Import
             }
         }
 
-        public static ForgePreparedMaterial Prepare(GltfImport gltf, int materialIndex, ForgeRenderPipeline pipeline)
+        public static ForgePreparedMaterial Prepare(GltfImport gltf, int materialIndex, ForgeRenderPipeline pipeline, ForgeTextureCache cache = null)
         {
             if (gltf == null) throw new ArgumentNullException(nameof(gltf));
             var source = materialIndex < 0 ? new GLTFast.Schema.Material() : gltf.GetSourceMaterial(materialIndex);
             if (source == null) throw new InvalidDataException($"Material {materialIndex} is missing from the glb.");
-            return Prepare(source, gltf.GetTexture, pipeline);
+            return Prepare(source, gltf.GetTexture, pipeline, cache, i => gltf.GetSourceTexture(i).GetImageIndex());
         }
 
         /// <summary>Preparation validates and encodes everything before the push writes any asset.</summary>
-        public static ForgePreparedMaterial Prepare(MaterialBase source, Func<int, Texture2D> texture, ForgeRenderPipeline pipeline)
+        public static ForgePreparedMaterial Prepare(MaterialBase source, Func<int, Texture2D> texture, ForgeRenderPipeline pipeline,
+            ForgeTextureCache cache = null, Func<int, int> image = null)
         {
             if (source == null) throw new ArgumentNullException(nameof(source));
             if (texture == null) throw new ArgumentNullException(nameof(texture));
@@ -96,7 +97,10 @@ namespace ForgeBridge.Editor.Import
                 var pbr = source.PbrMetallicRoughness;
                 var metallic = pbr?.metallicFactor ?? 1f;
                 var roughness = pbr?.roughnessFactor ?? 1f;
-                var prepared = new ForgePreparedMaterial(material, validator);
+                cache = cache ?? new ForgeTextureCache();
+                string Input(TextureInfoBase info) => info == null || info.index < 0 ? "none" : (image?.Invoke(info.index) ?? info.index).ToString(System.Globalization.CultureInfo.InvariantCulture);
+                string Factor(float value) => value.ToString("R", System.Globalization.CultureInfo.InvariantCulture);
+                var prepared = new ForgePreparedMaterial(material, validator, cache);
                 SetColor(material, pipeline == ForgeRenderPipeline.BuiltIn ? "_Color" : "_BaseColor", (pbr?.BaseColor ?? Color.white).gamma);
                 SetFloat(material, "_Metallic", metallic);
                 SetFloat(material, "_Glossiness", 1 - roughness);
@@ -107,9 +111,9 @@ namespace ForgeBridge.Editor.Import
                 SetFloat(material, "_BumpScale", source.NormalTexture?.scale ?? 1);
                 SetFloat(material, "_OcclusionStrength", source.OcclusionTexture?.strength ?? 1);
 
-                AddTexture(prepared, texture, pbr?.BaseColorTexture, "BaseColor", pipeline == ForgeRenderPipeline.HighDefinition ? "_BaseColorMap" : pipeline == ForgeRenderPipeline.Universal ? "_BaseMap" : "_MainTex", true);
-                AddTexture(prepared, texture, source.NormalTexture, "Normal", pipeline == ForgeRenderPipeline.HighDefinition ? "_NormalMap" : "_BumpMap", false, true);
-                AddTexture(prepared, texture, source.EmissiveTexture, "Emissive", pipeline == ForgeRenderPipeline.HighDefinition ? "_EmissiveColorMap" : "_EmissionMap", true);
+                AddTexture(prepared, texture, Input, pbr?.BaseColorTexture, "BaseColor", pipeline == ForgeRenderPipeline.HighDefinition ? "_BaseColorMap" : pipeline == ForgeRenderPipeline.Universal ? "_BaseMap" : "_MainTex", true);
+                AddTexture(prepared, texture, Input, source.NormalTexture, "Normal", pipeline == ForgeRenderPipeline.HighDefinition ? "_NormalMap" : "_BumpMap", false, true);
+                AddTexture(prepared, texture, Input, source.EmissiveTexture, "Emissive", pipeline == ForgeRenderPipeline.HighDefinition ? "_EmissiveColorMap" : "_EmissionMap", true);
 
                 var mr = ReadTexture(texture, pbr?.MetallicRoughnessTexture);
                 var occlusion = ReadTexture(texture, source.OcclusionTexture);
@@ -120,11 +124,13 @@ namespace ForgeBridge.Editor.Import
                         throw new NotSupportedException("HDRP requires metallic/roughness and occlusion maps with matching samplers. Bake the maps in Forge first.");
                     var width = Math.Max(mr?.width ?? 1, pipeline == ForgeRenderPipeline.HighDefinition ? occlusion?.width ?? 1 : 1);
                     var height = Math.Max(mr?.height ?? 1, pipeline == ForgeRenderPipeline.HighDefinition ? occlusion?.height ?? 1 : 1);
-                    var pixels = PackMetallicRoughness(Resample(mr, width, height),
-                        pipeline == ForgeRenderPipeline.HighDefinition ? Resample(occlusion, width, height) : null,
-                        metallic, roughness, source.OcclusionTexture?.strength ?? 1, pipeline);
+                    string packedKey = "mr-BG/" + pipeline + "/" + Input(pbr?.MetallicRoughnessTexture) + "/" + Factor(metallic) + "/" + Factor(roughness);
+                    if (pipeline == ForgeRenderPipeline.HighDefinition) packedKey += "/ao-R/" + Input(source.OcclusionTexture) + "/" + Factor(source.OcclusionTexture?.strength ?? 1);
                     prepared.Add("MetallicRoughness", pipeline == ForgeRenderPipeline.HighDefinition ? "_MaskMap" : "_MetallicGlossMap",
-                        pixels, width, height, mr ?? occlusion, false, false);
+                        () => PackMetallicRoughness(Resample(mr, width, height),
+                            pipeline == ForgeRenderPipeline.HighDefinition ? Resample(occlusion, width, height) : null,
+                            metallic, roughness, source.OcclusionTexture?.strength ?? 1, pipeline),
+                        width, height, mr ?? occlusion, false, false, packedKey);
                     // Factors are baked into the packed pixels, including 1 - (roughness * factor).
                     SetFloat(material, "_Metallic", 1);
                     SetFloat(material, "_Smoothness", 1);
@@ -138,9 +144,11 @@ namespace ForgeBridge.Editor.Import
                 }
                 if (occlusion != null && pipeline != ForgeRenderPipeline.HighDefinition)
                 {
-                    var pixels = occlusion.GetPixels32();
-                    for (var i = 0; i < pixels.Length; i++) pixels[i] = new Color32(pixels[i].r, pixels[i].r, pixels[i].r, 255);
-                    prepared.Add("Occlusion", "_OcclusionMap", pixels, occlusion.width, occlusion.height, occlusion, false, false);
+                    prepared.Add("Occlusion", "_OcclusionMap", () => {
+                        var pixels = occlusion.GetPixels32();
+                        for (var i = 0; i < pixels.Length; i++) pixels[i] = new Color32(pixels[i].r, pixels[i].r, pixels[i].r, 255);
+                        return pixels;
+                    }, occlusion.width, occlusion.height, occlusion, false, false, "ao-R/" + Input(source.OcclusionTexture));
                 }
 
                 // HDR shader color properties are linear. Do not gamma-convert the emission factor.
@@ -289,11 +297,11 @@ namespace ForgeBridge.Editor.Import
             return result;
         }
 
-        private static void AddTexture(ForgePreparedMaterial prepared, Func<int, Texture2D> texture,
+        private static void AddTexture(ForgePreparedMaterial prepared, Func<int, Texture2D> texture, Func<TextureInfoBase, string> input,
             TextureInfoBase info, string role, string property, bool srgb, bool normal = false)
         {
             var source = ReadTexture(texture, info);
-            if (source != null) prepared.Add(role, property, source.GetPixels32(), source.width, source.height, source, srgb, normal);
+            if (source != null) prepared.Add(role, property, () => source.GetPixels32(), source.width, source.height, source, srgb, normal, "image/" + input(info));
         }
 
         private static Color32[] Resample(Texture2D texture, int width, int height)
@@ -320,12 +328,20 @@ namespace ForgeBridge.Editor.Import
         }
     }
 
+    /// <summary>Per-push encoded buffers and completed writes, keyed by source images and import settings.</summary>
+    public sealed class ForgeTextureCache
+    {
+        internal readonly Dictionary<string, byte[]> Encoded = new Dictionary<string, byte[]>();
+        internal readonly HashSet<string> Written = new HashSet<string>();
+        internal readonly HashSet<string> Imported = new HashSet<string>();
+    }
+
     /// <summary>Prepared bytes and material; Save runs in the push batch, Finish after StopAssetEditing.</summary>
     public sealed class ForgePreparedMaterial : IDisposable
     {
         private sealed class TextureWrite
         {
-            public string Role, Property, Path;
+            public string Role, Property, Path, Key;
             public byte[] Png;
             public bool Srgb, Normal;
             public int Size;
@@ -335,33 +351,42 @@ namespace ForgeBridge.Editor.Import
 
         private readonly List<TextureWrite> textures = new List<TextureWrite>();
         private readonly ShaderGUI validator;
+        private readonly ForgeTextureCache cache;
         private Material material;
         private bool saved;
 
-        internal ForgePreparedMaterial(Material material, ShaderGUI validator)
+        internal ForgePreparedMaterial(Material material, ShaderGUI validator, ForgeTextureCache cache)
         {
             this.material = material;
             this.validator = validator;
+            this.cache = cache;
         }
 
         public IReadOnlyList<string> TextureRoles => textures.Select(texture => texture.Role).ToArray();
 
-        internal void Add(string role, string property, Color32[] pixels, int width, int height,
-            Texture2D sampler, bool srgb, bool normal)
+        public string TextureKey(string role) => textures.Single(t => t.Role == role).Key;
+
+        internal void Add(string role, string property, Func<Color32[]> pixels, int width, int height,
+            Texture2D sampler, bool srgb, bool normal, string sourceKey)
         {
-            var encoded = new Texture2D(width, height, TextureFormat.RGBA32, false, true);
-            try
+            string key = sourceKey + "/" + srgb + "/" + normal + "/" + sampler.wrapModeU + "/" + sampler.wrapModeV + "/" + sampler.filterMode;
+            if (!cache.Encoded.TryGetValue(key, out var png))
             {
-                encoded.SetPixels32(pixels);
-                encoded.Apply(false, false);
-                textures.Add(new TextureWrite
+                var encoded = new Texture2D(width, height, TextureFormat.RGBA32, false, true);
+                try
                 {
-                    Role = role, Property = property, Png = encoded.EncodeToPNG(), Srgb = srgb, Normal = normal,
-                    Size = Math.Max(32, Mathf.NextPowerOfTwo(Math.Max(width, height))), WrapU = sampler.wrapModeU,
-                    WrapV = sampler.wrapModeV, Filter = sampler.filterMode
-                });
+                    encoded.SetPixels32(pixels());
+                    encoded.Apply(false, false);
+                    png = encoded.EncodeToPNG();
+                    cache.Encoded.Add(key, png);
+                }
+                finally { Object.DestroyImmediate(encoded); }
             }
-            finally { Object.DestroyImmediate(encoded); }
+            textures.Add(new TextureWrite {
+                Role = role, Property = property, Key = key, Png = png, Srgb = srgb, Normal = normal,
+                Size = Math.Max(32, Mathf.NextPowerOfTwo(Math.Max(width, height))), WrapU = sampler.wrapModeU,
+                WrapV = sampler.wrapModeV, Filter = sampler.filterMode
+            });
         }
 
         public Material Save(string materialPath, Func<string, string> texturePath)
@@ -372,7 +397,8 @@ namespace ForgeBridge.Editor.Import
             foreach (var texture in textures) texture.Path = texturePath(texture.Role);
             ForgeIndex.EnsureFolder(Path.GetDirectoryName(materialPath).Replace('\\', '/'));
             foreach (var texture in textures) ForgeIndex.EnsureFolder(Path.GetDirectoryName(texture.Path).Replace('\\', '/'));
-            foreach (var texture in textures) File.WriteAllBytes(texture.Path, texture.Png);
+            foreach (var texture in textures)
+                if (cache.Written.Add(texture.Path)) File.WriteAllBytes(texture.Path, texture.Png);
             material.name = Path.GetFileNameWithoutExtension(materialPath);
             var existing = AssetDatabase.LoadAssetAtPath<Material>(materialPath);
             if (existing == null)
@@ -396,24 +422,27 @@ namespace ForgeBridge.Editor.Import
             if (!saved || material == null) throw new InvalidOperationException("Save the material before finishing its texture imports.");
             foreach (var texture in textures)
             {
-                AssetDatabase.ImportAsset(texture.Path, ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate);
-                var importer = AssetImporter.GetAtPath(texture.Path) as TextureImporter;
-                if (importer == null) throw new IOException($"Texture importer is unavailable for '{texture.Path}'.");
-                importer.textureType = texture.Normal ? TextureImporterType.NormalMap : TextureImporterType.Default;
-                importer.sRGBTexture = texture.Srgb;
-                importer.alphaSource = TextureImporterAlphaSource.FromInput;
-                importer.alphaIsTransparency = false;
-                importer.convertToNormalmap = false;
-                importer.flipGreenChannel = false;
-                importer.npotScale = TextureImporterNPOTScale.None;
-                importer.textureCompression = TextureImporterCompression.Uncompressed;
-                importer.maxTextureSize = texture.Size;
-                importer.wrapModeU = texture.WrapU;
-                importer.wrapModeV = texture.WrapV;
-                importer.filterMode = texture.Filter;
-                importer.mipmapEnabled = true;
-                importer.isReadable = false;
-                importer.SaveAndReimport();
+                if (cache.Imported.Add(texture.Path))
+                {
+                    AssetDatabase.ImportAsset(texture.Path, ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate);
+                    var importer = AssetImporter.GetAtPath(texture.Path) as TextureImporter;
+                    if (importer == null) throw new IOException($"Texture importer is unavailable for '{texture.Path}'.");
+                    importer.textureType = texture.Normal ? TextureImporterType.NormalMap : TextureImporterType.Default;
+                    importer.sRGBTexture = texture.Srgb;
+                    importer.alphaSource = TextureImporterAlphaSource.FromInput;
+                    importer.alphaIsTransparency = false;
+                    importer.convertToNormalmap = false;
+                    importer.flipGreenChannel = false;
+                    importer.npotScale = TextureImporterNPOTScale.None;
+                    importer.textureCompression = TextureImporterCompression.Uncompressed;
+                    importer.maxTextureSize = texture.Size;
+                    importer.wrapModeU = texture.WrapU;
+                    importer.wrapModeV = texture.WrapV;
+                    importer.filterMode = texture.Filter;
+                    importer.mipmapEnabled = true;
+                    importer.isReadable = false;
+                    importer.SaveAndReimport();
+                }
                 var asset = AssetDatabase.LoadAssetAtPath<Texture2D>(texture.Path);
                 if (asset == null) throw new IOException($"Texture import failed for '{texture.Path}'.");
                 material.SetTexture(texture.Property, asset);

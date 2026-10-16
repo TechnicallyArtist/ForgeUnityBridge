@@ -64,6 +64,7 @@ namespace ForgeBridge.Editor.Import
                 ThrowImportErrors(loaded, logger);
                 Scene preview = EditorSceneManager.NewPreviewScene();
                 var prepared = new Dictionary<int, ForgePreparedMaterial>();
+                var textureCache = new ForgeTextureCache();
                 var transient = new List<Object>();
                 try
                 {
@@ -83,6 +84,14 @@ namespace ForgeBridge.Editor.Import
                     var paths = new Dictionary<string, string>();
                     string Plan(string key, string proposed)
                     {
+                        // Migrate an old per-material texture key when its proposed path is still
+                        // Forge-owned. Foreign files still go through Resolve's collision refusal.
+                        if (key.StartsWith("texture/", StringComparison.Ordinal) && !entry.Assets.Any(a => a.Key == key))
+                        {
+                            var previous = entry.Assets.FirstOrDefault(a => a.Key.StartsWith("texture/", StringComparison.Ordinal) &&
+                                a.Asset != null && AssetDatabase.GetAssetPath(a.Asset) == proposed);
+                            if (previous != null) previous.Key = key;
+                        }
                         string resolved = entry.Resolve(key, proposed);
                         if (paths.Any(p => p.Key != key && string.Equals(p.Value, resolved, StringComparison.OrdinalIgnoreCase)))
                             throw new InvalidOperationException("Two generated assets resolve to " + resolved + ". Rename duplicate material or clip names in Forge.");
@@ -112,7 +121,7 @@ namespace ForgeBridge.Editor.Import
                     // a fully assigned mesh needs neither a Default.mat nor unused glTF materials.
                     foreach (int i in usedMaterialIndices)
                     {
-                        var material = ForgeMaterials.Prepare(gltf, i, pipeline);
+                        var material = ForgeMaterials.Prepare(gltf, i, pipeline, textureCache);
                         prepared.Add(i, material);
                         string slot = i < 0 ? "Default" : ForgeIndex.SafeName(gltf.GetSourceMaterial(i).name ?? "Slot" + i);
                         bool duplicateName = i >= 0 && Enumerable.Range(0, i).Any(j => (gltf.GetSourceMaterial(j).name ?? "Slot" + j) == (gltf.GetSourceMaterial(i).name ?? "Slot" + i));
@@ -121,7 +130,28 @@ namespace ForgeBridge.Editor.Import
                         if (duplicateName || materialKeys.Values.Contains(materialKey)) materialKey += "#" + i;
                         materialKeys.Add(i, materialKey);
                         Plan("material/" + materialKey, folder + "/Materials/" + entry.BaseName + "_" + slot + ".mat");
-                        foreach (string role in material.TextureRoles) Plan("texture/" + materialKey + "/" + role, folder + "/Textures/" + entry.BaseName + "_" + slot + "_" + role + ".png");
+                    }
+                    // Resolve shared texture identities once, independently of material labels.
+                    var textureUses = prepared.SelectMany(m => m.Value.TextureRoles.Select(role => new {
+                        Material = m.Key, Role = role, Key = m.Value.TextureKey(role)
+                    })).GroupBy(t => t.Key).ToArray();
+                    var sharedRoleCounts = new Dictionary<string, int>();
+                    foreach (var uses in textureUses)
+                    {
+                        var first = uses.First();
+                        string suffix;
+                        if (uses.Select(t => t.Material).Distinct().Count() == 1)
+                        {
+                            string materialPath = paths["material/" + materialKeys[first.Material]];
+                            suffix = Path.GetFileNameWithoutExtension(materialPath) + "_" + first.Role;
+                        }
+                        else
+                        {
+                            sharedRoleCounts.TryGetValue(first.Role, out int number);
+                            sharedRoleCounts[first.Role] = number + 1;
+                            suffix = entry.BaseName + "_" + first.Role + (number == 0 ? "" : "_" + number);
+                        }
+                        Plan("texture/" + uses.Key, folder + "/Textures/" + suffix + ".png");
                     }
                     var clips = new List<AnimationClip>();
                     for (int i = 0; i < sourceClips.Length; i++)
@@ -162,11 +192,18 @@ namespace ForgeBridge.Editor.Import
                     if (rigged && !customController) Plan("controller", folder + "/Animations/" + entry.BaseName + ".controller");
                     var userSlots = UserSlots(entry);
                     var clipNames = clips.Select(c => c.name).ToArray();
+                    var createdFolders = new List<string>();
                     using (var transaction = new ForgeWriteTransaction(paths.Values.Concat(new[] { prefabPath, indexPath })))
                     {
                         AssetDatabase.StartAssetEditing();
                         try
                         {
+                            foreach (string outputFolder in paths.Values.Select(p => Path.GetDirectoryName(p).Replace('\\', '/')).Distinct())
+                            {
+                                bool existed = Directory.Exists(outputFolder);
+                                ForgeIndex.EnsureFolder(outputFolder);
+                                if (!existed) createdFolders.Add(outputFolder);
+                            }
                             ForgeIndex.EnsureFolder(folder);
                             if (index == null)
                             {
@@ -187,7 +224,7 @@ namespace ForgeBridge.Editor.Import
                             foreach (int i in usedMaterialIndices)
                             {
                                 string materialKey = materialKeys[i];
-                                Material material = prepared[i].Save(paths["material/" + materialKey], role => paths["texture/" + materialKey + "/" + role]);
+                                Material material = prepared[i].Save(paths["material/" + materialKey], role => paths["texture/" + prepared[i].TextureKey(role)]);
                                 entry.Set("material/" + materialKey, material);
                                 materialIdentities[material] = materialKey;
                                 if (i < 0) defaultMaterial = material;
@@ -236,6 +273,8 @@ namespace ForgeBridge.Editor.Import
                         if (rigged && !customController) ForgeAnimator.Finish(entry.Get<AnimatorController>("controller"));
                         foreach (var material in prepared.Values) material.Finish();
                         foreach (var pair in paths.Where(p => p.Key.StartsWith("texture/", StringComparison.Ordinal))) entry.Set(pair.Key, AssetDatabase.LoadAssetAtPath<Texture2D>(pair.Value));
+                        foreach (string createdFolder in createdFolders)
+                            entry.Set("folder/" + createdFolder, AssetDatabase.LoadAssetAtPath<DefaultAsset>(createdFolder));
                         entry.Prefab = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
                         if (entry.Prefab == null) throw new IOException("Unity could not load the saved prefab.");
                         ForgeSource.Write(prefabPath, projectId, nodeId);
@@ -244,7 +283,10 @@ namespace ForgeBridge.Editor.Import
                         transaction.Commit();
                     }
                     // Prune after the saved prefab releases its old references. Controllers and Variants count as owners.
-                    foreach (var item in entry.Assets.Where(a => (a.Key.StartsWith("clip/", StringComparison.Ordinal) && !paths.ContainsKey(a.Key)) || (!rigged && a.Key == "controller")).ToArray())
+                    foreach (var item in entry.Assets.Where(a => !paths.ContainsKey(a.Key) &&
+                        (a.Key.StartsWith("material/", StringComparison.Ordinal) || a.Key.StartsWith("mesh/", StringComparison.Ordinal) ||
+                         a.Key.StartsWith("texture/", StringComparison.Ordinal) || a.Key.StartsWith("clip/", StringComparison.Ordinal) || (!rigged && a.Key == "controller")))
+                        .OrderBy(a => a.Key.StartsWith("texture/", StringComparison.Ordinal) ? 1 : 0).ToArray())
                     {
                         try
                         {
@@ -254,6 +296,21 @@ namespace ForgeBridge.Editor.Import
                             else warnings.Add("Could not remove unused " + AssetDatabase.GetAssetPath(item.Asset));
                         }
                         catch (Exception error) { warnings.Add("Unused asset cleanup could not finish: " + error.Message); }
+                    }
+                    foreach (var owned in entry.Assets.Where(a => a.Key.StartsWith("folder/", StringComparison.Ordinal)).ToArray())
+                    {
+                        try
+                        {
+                            string path = AssetDatabase.GetAssetPath(owned.Asset);
+                            if (owned.Asset == null || string.IsNullOrEmpty(owned.FolderGuid) || AssetDatabase.AssetPathToGUID(path) != owned.FolderGuid)
+                                entry.Assets.Remove(owned);
+                            else if (AssetDatabase.IsValidFolder(path) && !Directory.EnumerateFileSystemEntries(path).Any())
+                            {
+                                if (AssetDatabase.DeleteAsset(path)) entry.Assets.Remove(owned);
+                                else warnings.Add("Could not remove unused folder " + path);
+                            }
+                        }
+                        catch (Exception error) { warnings.Add("Unused folder cleanup could not finish: " + error.Message); }
                     }
                     EditorUtility.SetDirty(index);
                     try { ForgeAssetWriter.SaveChanges(new[] { indexPath }); }

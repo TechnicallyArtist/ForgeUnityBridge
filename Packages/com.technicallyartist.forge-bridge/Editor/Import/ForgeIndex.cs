@@ -149,11 +149,12 @@ namespace ForgeBridge.Editor.Import
         public void Set(string key, Object asset)
         {
             var item = Assets.FirstOrDefault(a => a.Key == key);
-            if (item == null) Assets.Add(new ForgeOwnedAsset { Key = key, Asset = asset });
-            else item.Asset = asset;
+            if (item == null) { item = new ForgeOwnedAsset { Key = key }; Assets.Add(item); }
+            item.Asset = asset;
+            if (key.StartsWith("folder/", StringComparison.Ordinal)) item.FolderGuid = AssetDatabase.AssetPathToGUID(AssetDatabase.GetAssetPath(asset));
         }
     }
 
-    [Serializable] public sealed class ForgeOwnedAsset { public string Key; public Object Asset; }
+    [Serializable] public sealed class ForgeOwnedAsset { public string Key; public Object Asset; public string FolderGuid; }
     [Serializable] public sealed class ForgeSlot { public string Key; public string Identity; public Material Generated; }
 }

@@ -21,3 +21,7 @@ are tracked with Git LFS.
 From the host, run `scripts/Test-EditMode.ps1`. Always run both supported editor
 versions before release; 6000.4 uses a separate probe, never this host. Test outputs
 are ignored under `TestResults/`. Tests create and remove their own Assets folders.
+
+`ForgeFlatPushTests` covers shared image recipes (32 materials / 3 textures), packed map channels,
+repeat GUIDs, legacy-key migration, shrinking pushes, referenced and user-assigned materials,
+and removal of empty folders only when Forge created them.
