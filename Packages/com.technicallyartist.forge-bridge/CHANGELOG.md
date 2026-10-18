@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.1 — unreleased
+
+- Protocol 1.3: approved Forge tabs can update official Git installs; busy editors and local/fork installs refuse with a reason. Window > Forge records requests and failures.
+
 ## 0.2.0 — 2026-10-18
 
 - Import Collision Shape metadata as rotated BoxColliders and convex MeshColliders.

@@ -32,7 +32,7 @@ namespace ForgeBridge.Editor
 
     public static class ForgeProtocol
     {
-        public const string Version = "1.2";
+        public const string Version = "1.3";
         public const int HeaderLimit = 64 * 1024;
         public const int MaximumPayload = 256 * 1024 * 1024;
         internal static readonly UTF8Encoding Utf8 = new UTF8Encoding(false, true);
@@ -42,7 +42,7 @@ namespace ForgeBridge.Editor
             if (version == null) return false;
             var parts = version.Split('.');
             return parts.Length == 2 && IsDigits(parts[0]) && IsDigits(parts[1]) &&
-                int.TryParse(parts[0], out var major) && int.TryParse(parts[1], out var minor) && major == 1 && minor <= 1;
+                int.TryParse(parts[0], out var major) && int.TryParse(parts[1], out var minor) && major == 1 && minor <= 3;
         }
 
         private static bool IsDigits(string text)
@@ -65,10 +65,11 @@ namespace ForgeBridge.Editor
             return header;
         }
 
-        public static JObject Welcome(string reference, string projectId, string projectName, string editorVersion, string pluginVersion)
+        public static JObject Welcome(string reference, string projectId, string projectName, string editorVersion, string pluginVersion, bool selfUpdate = false)
         {
             var header = Header("welcome", reference);
             header["plugin"] = new JObject { ["version"] = pluginVersion };
+            if (selfUpdate) header["plugin"]["selfUpdate"] = true;
             header["engine"] = new JObject { ["name"] = "unity", ["version"] = editorVersion };
             header["project"] = new JObject { ["name"] = projectName };
             header["projectId"] = projectId;

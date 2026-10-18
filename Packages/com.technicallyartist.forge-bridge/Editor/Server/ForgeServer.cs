@@ -30,6 +30,7 @@ namespace ForgeBridge.Editor
         private readonly JObject welcome;
         private readonly Func<string, CancellationToken, Task<bool>> consent;
         private readonly Func<JObject, byte[], CancellationToken, Task<PushResult>> import;
+        private readonly Func<JObject, int, Func<JObject, Task>, CancellationToken, Task<bool>> update;
         private readonly Action<string, bool> log;
         private readonly Action<int, string> listenerState;
         private readonly Action<BridgeSession> sessionChanged;
@@ -42,7 +43,8 @@ namespace ForgeBridge.Editor
         public ForgeServer(int firstPort, int lastPort, int payloadCap, JObject welcome,
             Func<string, CancellationToken, Task<bool>> consent,
             Func<JObject, byte[], CancellationToken, Task<PushResult>> import,
-            Action<string, bool> log, Action<int, string> listenerState, Action<BridgeSession> sessionChanged)
+            Action<string, bool> log, Action<int, string> listenerState, Action<BridgeSession> sessionChanged,
+            Func<JObject, int, Func<JObject, Task>, CancellationToken, Task<bool>> update = null)
         {
             if (firstPort < 1 || lastPort > 65535 || firstPort > lastPort) throw new ArgumentOutOfRangeException(nameof(firstPort));
             if (payloadCap < 1 || payloadCap > ForgeProtocol.MaximumPayload) throw new ArgumentOutOfRangeException(nameof(payloadCap));
@@ -52,6 +54,7 @@ namespace ForgeBridge.Editor
             this.welcome = welcome;
             this.consent = consent;
             this.import = import;
+            this.update = update;
             this.log = log;
             this.listenerState = listenerState;
             this.sessionChanged = sessionChanged;
@@ -151,6 +154,7 @@ namespace ForgeBridge.Editor
             private int closing;
             private int unansweredPings;
             private int importing;
+            private int updating;
             public string Id { get; } = Guid.NewGuid().ToString("D");
             public string Origin { get; private set; }
 
@@ -350,6 +354,17 @@ namespace ForgeBridge.Editor
                     return;
                 }
                 if (!helloSeen) { await DenyAsync("hello", "hello must be the first message", reference).ConfigureAwait(false); return; }
+                if (type == "update")
+                {
+                    if (Interlocked.CompareExchange(ref updating, 1, 0) != 0)
+                    {
+                        var failed = ForgeProtocol.Header("update-failed", reference);
+                        failed["message"] = "A bridge update is already running; wait for Unity to finish";
+                        await SendAsync(failed).ConfigureAwait(false);
+                    }
+                    else _ = UpdateAsync(message);
+                    return;
+                }
                 if (type != "push") throw new BridgeProtocolException(1008, "unexpected message type " + type);
                 var envelopeProblem = ForgeProtocol.PushProblem(header, message.Payload.Length);
                 if (envelopeProblem != null)
@@ -364,6 +379,30 @@ namespace ForgeBridge.Editor
                 }
                 // Continue reading control frames while Unity imports. One outstanding import per session bounds the queue.
                 _ = ImportAsync(message);
+            }
+
+            private async Task UpdateAsync(ForgeMessage message)
+            {
+                try
+                {
+                    if (owner.update != null)
+                        await owner.update(message.Header, message.Payload.Length, SendAsync, lifetime.Token).ConfigureAwait(false);
+                    else
+                    {
+                        var failed = ForgeProtocol.Header("update-failed", ForgeProtocol.String(message.Header, "id"));
+                        failed["message"] = "This bridge cannot update itself";
+                        await SendAsync(failed).ConfigureAwait(false);
+                    }
+                }
+                catch (Exception error)
+                {
+                    if (!lifetime.IsCancellationRequested)
+                    {
+                        owner.log("bridge update failed: " + error.Message, true);
+                        await CloseAsync(1011, "bridge update failed").ConfigureAwait(false);
+                    }
+                }
+                finally { Interlocked.Exchange(ref updating, 0); }
             }
 
             private async Task ImportAsync(ForgeMessage message)

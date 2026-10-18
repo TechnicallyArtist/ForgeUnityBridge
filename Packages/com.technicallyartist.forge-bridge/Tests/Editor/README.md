@@ -25,3 +25,5 @@ are ignored under `TestResults/`. Tests create and remove their own Assets folde
 `ForgeFlatPushTests` covers shared image recipes (32 materials / 3 textures), packed map channels,
 repeat GUIDs, legacy-key migration, shrinking pushes, referenced and user-assigned materials,
 and removal of empty folders only when Forge created them.
+
+ForgeUpdateTests covers install-source eligibility, strict versions, busy refusals and a fake Package Manager adapter. ForgeTransportTests exercises post-hello update dispatch, old-header refusal and pre-hello denial over real loopback sockets.

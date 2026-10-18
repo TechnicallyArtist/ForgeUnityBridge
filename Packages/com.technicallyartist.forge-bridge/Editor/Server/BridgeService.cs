@@ -30,7 +30,7 @@ namespace ForgeBridge.Editor
         public static string ListenerReason { get; private set; } = "starting";
         public static IEnumerable<BridgeSession> Sessions => SessionRows.Values;
         public static event Action Changed;
-        public const string PluginVersion = "0.2.0";
+        public const string PluginVersion = "0.2.1";
         /// <summary>Origins denied since the editor started. SessionState survives domain reloads, not a restart.</summary>
         public static IEnumerable<string> DeniedOrigins => SessionState.GetString(DeniedOriginsKey, "").Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries);
         public static string ListenerState => ListenerPort > 0 ? "listening on 127.0.0.1:" + ListenerPort : "not listening: " + ListenerReason;
@@ -58,7 +58,7 @@ namespace ForgeBridge.Editor
             ListenerReason = "starting";
             var current = generation;
             var info = ForgeProtocol.Welcome(null, ProjectIdentity(PlayerSettings.productGUID.ToString(), Path.GetFullPath(".")),
-                PlayerSettings.productName, Application.unityVersion, PluginVersion);
+                PlayerSettings.productName, Application.unityVersion, PluginVersion, BridgeUpdater.InstalledFromForge());
             server = new ForgeServer(settings.FirstPort, settings.LastPort, settings.PayloadCapMiB * 1024 * 1024, info,
                 AskConsentAsync, ImportOnMainThreadAsync,
                 (message, error) => EnqueueCurrent(current, () => RecordEvent(message, error)),
@@ -74,7 +74,7 @@ namespace ForgeBridge.Editor
                     if (session.Connected) SessionRows[session.Id] = session;
                     else SessionRows.Remove(session.Id);
                     Changed?.Invoke();
-                }));
+                }), UpdateOnMainThreadAsync);
             _ = server.StartAsync(SessionState.GetInt("ForgeBridge.ListenerPort", 0));
             Changed?.Invoke();
         }
@@ -151,6 +151,22 @@ namespace ForgeBridge.Editor
                 }
                 else RememberDenied(origin);
                 return Task.FromResult(allowed);
+            }, cancellation);
+        }
+
+        private static Task<bool> UpdateOnMainThreadAsync(JObject header, int payloadBytes, Func<JObject, Task> reply, CancellationToken cancellation)
+        {
+            return OnMainThreadAsync(async () =>
+            {
+                var acquired = ImportGate.Wait(0);
+                try
+                {
+                    var problem = BridgeUpdater.Problem(header, payloadBytes, PluginVersion, BridgeUpdater.InstalledFromForge(),
+                        EditorApplication.isPlayingOrWillChangePlaymode, EditorApplication.isCompiling, EditorApplication.isUpdating || !acquired);
+                    await BridgeUpdater.RunAsync(header, problem, reply, BridgeUpdater.AddPackageAsync, RecordEvent);
+                    return true;
+                }
+                finally { if (acquired) ImportGate.Release(); }
             }, cancellation);
         }
 

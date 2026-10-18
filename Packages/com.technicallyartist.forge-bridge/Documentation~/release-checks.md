@@ -37,3 +37,11 @@ Deferred scope is filed: PRO-293 automatic pushes, PRO-294 Humanoid avatars,
 PRO-295 migration of Unreal onto Engine Output, and PRO-296 public distribution.
 
 See [implementation validation](validation.md) for the completed local checks.
+
+## 0.2.1 release order (PRO-360)
+
+1. Run EditMode on 6000.0.40f1 and 6000.4.6f1; verify Git-installed updates and reconnect confirmation live.
+2. Owner approves pushing tag 0.2.1 and publishing its GitHub Release (also publish the missing 0.2.0 Release). Never move an existing tag.
+3. Only after the tag exists, bump Forge BRIDGE_VERSION and the manual install URL to 0.2.1. Forge deploy checks the remote tag before building.
+
+The candidate is implemented locally; release/tag publication and live Git upgrade remain pending owner approval.

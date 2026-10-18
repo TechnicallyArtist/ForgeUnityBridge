@@ -23,7 +23,7 @@ refresh. Git must be installed for Unity to fetch it. To install by hand, use
 Package Manager > Add package from git URL:
 
 ```
-https://github.com/TechnicallyArtist/ForgeUnityBridge.git?path=Packages/com.technicallyartist.forge-bridge#0.2.0
+https://github.com/TechnicallyArtist/ForgeUnityBridge.git?path=Packages/com.technicallyartist.forge-bridge#0.2.1
 ```
 
 For local development, Package Manager > Add package from disk: select this
@@ -103,3 +103,7 @@ are saved under `Meshes/Collision`, retain GUIDs, and are pruned when no longer 
 Collision meshes have no renderer or material. A rigged mesh uses rest-pose collision only.
 
 Version 0.2.0 implements protocol 1.2. See [collision validation](Documentation~/collision-validation.md).
+
+## Updating from Forge
+
+Official Git installs advertise self-update capability to Forge. From version 0.2.1, Forge can request a newer release with one click. Unity refuses while playing, compiling or importing; requests and failures appear in Window > Forge. Local, embedded and fork packages are preserved. The bridge never accepts a package URL from the browser.

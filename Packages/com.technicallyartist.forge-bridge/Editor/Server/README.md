@@ -34,3 +34,7 @@ that cannot fit even after diagnostic truncation closes the session with a logge
 of leaving the tab waiting for a result.
 
 [Package overview](../../README.md) · [Protocol](../Protocol/README.md) · [Editor UI](../UI/README.md)
+
+## Bridge updates (1.3)
+
+BridgeUpdater validates the official Git source and strict newer version, then invokes Package Manager on the main thread. BridgeService shares the import gate so updates refuse while a push is importing and subsequent pushes wait for package resolution. ForgeServer dispatches updates only after hello, keeps processing pings, and bounds each session to one pending update.

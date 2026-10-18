@@ -78,7 +78,9 @@ namespace ForgeBridge.Editor.Tests
 
         [TestCase("1.0", true)]
         [TestCase("1.1", true)]
-        [TestCase("1.2", false)]
+        [TestCase("1.2", true)]
+        [TestCase("1.3", true)]
+        [TestCase("1.4", false)]
         [TestCase("2.0", false)]
         [TestCase("1", false)]
         [TestCase("1.0.0", false)]
@@ -408,6 +410,37 @@ namespace ForgeBridge.Editor.Tests
             }
         }
 
+        [TestCase("1.2", "update-failed")]
+        [TestCase("1.3", "update-started")]
+        public async Task Session_UpdateDispatchesAfterHelloAndChecksMessageVersion(string protocol, string expected)
+        {
+            using (var server = new TestServer())
+            using (var client = await Connect(server))
+            {
+                await Write(client, ClientFrame(2, ForgeProtocol.Encode(Hello())));
+                await ReadMessage(client);
+                var update = new JObject { ["protocol"] = protocol, ["type"] = "update", ["id"] = "update-id", ["version"] = "0.2.2" };
+                await Write(client, ClientFrame(2, ForgeProtocol.Encode(update)));
+                var result = await ReadMessage(client);
+                Assert.AreEqual(expected, (string)result["type"]);
+                Assert.AreEqual("update-id", (string)result["ref"]);
+                if (expected == "update-failed") Assert.That((string)result["message"], Does.Contain("1.3"));
+                await Write(client, ClientFrame(9, new byte[] { 42 }));
+                Assert.AreEqual(10, (await ReadFrame(client)).Item1);
+            }
+        }
+
+        [Test]
+        public async Task Session_UpdateBeforeHelloIsDenied()
+        {
+            using (var server = new TestServer())
+            using (var client = await Connect(server))
+            {
+                await Write(client, ClientFrame(2, ForgeProtocol.Encode(new JObject { ["protocol"] = "1.3", ["type"] = "update", ["id"] = "u", ["version"] = "0.2.2" })));
+                Assert.AreEqual("hello", (string)(await ReadMessage(client))["reason"]);
+            }
+        }
+
         private static JObject Hello() => new JObject
         {
             ["protocol"] = "1.1", ["type"] = "hello", ["id"] = "hello-id", ["session"] = "tab-id",
@@ -555,7 +588,12 @@ namespace ForgeBridge.Editor.Tests
                     ForgeProtocol.Welcome(null, "unity-project", "Unity", "6000.0.40f1", "0.1.0"),
                     (_, __) => { Interlocked.Increment(ref ConsentCalls); return Task.FromResult(Allow); },
                     (header, payload, _) => Import(header, payload), (_, __) => { },
-                    (port, reason) => { Reason = reason; bound.TrySetResult(port); }, _ => { });
+                    (port, reason) => { Reason = reason; bound.TrySetResult(port); }, _ => { }, async (header, bytes, reply, token) =>
+                    {
+                        var problem = BridgeUpdater.Problem(header, bytes, "0.2.1", true, false, false, false);
+                        await BridgeUpdater.RunAsync(header, problem, reply, _ => Task.FromResult<string>(null), (_, __) => {});
+                        return true;
+                    });
                 _ = Server.StartAsync(preferred);
                 if (await Task.WhenAny(bound.Task, Task.Delay(5000)) != bound.Task) throw new TimeoutException("Listener did not bind");
                 return await bound.Task;

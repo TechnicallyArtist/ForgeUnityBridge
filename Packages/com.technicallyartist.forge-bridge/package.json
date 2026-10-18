@@ -1,6 +1,6 @@
 {
   "name": "com.technicallyartist.forge-bridge",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "displayName": "Forge Bridge for Unity",
   "description": "Push native meshes, materials and animated characters from Forge into the Unity Editor.",
   "unity": "6000.0",

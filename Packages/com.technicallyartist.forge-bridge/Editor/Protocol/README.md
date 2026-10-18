@@ -18,3 +18,5 @@ The Forge repository owns the canonical specification at `Plugins/PROTOCOL.md`. 
 and refusal behavior mirror the Unreal Forge Bridge implementation.
 
 [Package overview](../../README.md) · [Server](../Server/README.md)
+
+Protocol 1.3 accepts earlier 1.x headers. Welcome advertises plugin.selfUpdate only for an official Git install; update requires its own 1.3 header and no payload. update-started and update-failed correlate with ref. A reconnect welcome confirms successful installation. See the canonical Forge Plugins/PROTOCOL.md.
