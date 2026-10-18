@@ -38,10 +38,16 @@ PRO-295 migration of Unreal onto Engine Output, and PRO-296 public distribution.
 
 See [implementation validation](validation.md) for the completed local checks.
 
-## 0.2.1 release order (PRO-360)
+## 0.2.1 closure (PRO-360)
 
-1. Run EditMode on 6000.0.40f1 and 6000.4.6f1; verify Git-installed updates and reconnect confirmation live.
-2. Owner approves pushing tag 0.2.1 and publishing its GitHub Release (also publish the missing 0.2.0 Release). Never move an existing tag.
-3. Only after the tag exists, bump Forge BRIDGE_VERSION and the manual install URL to 0.2.1. Forge deploy checks the remote tag before building.
+The owner approved publication on 2026-10-18. Implementation abeb307 passed
+[CI on both Unity editors](https://github.com/TechnicallyArtist/ForgeUnityBridge/actions/runs/39124389308).
+Tag 0.2.1 was published at e23880ec70dcaa5e064e78d7ac3784aef7df6460 (release-date
+change only), before Forge advanced its pin to 0.2.1. Never move an existing tag.
+The 0.2.0 GitHub Release already exists.
 
-The candidate is implemented locally; release/tag publication and live Git upgrade remain pending owner approval.
+The owner subsequently requested ticket closure and committing remaining code.
+The 0.2.1 GitHub Release page remains unpublished. Real Git upgrade/reconnect and
+live busy-refusal validation remain incomplete: Computer Use stopped because it
+could not reliably determine the current browser URL. Automated tests and mock
+UI checks passed; closure does not represent completion of the missing live checks.
