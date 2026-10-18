@@ -23,7 +23,7 @@ refresh. Git must be installed for Unity to fetch it. To install by hand, use
 Package Manager > Add package from git URL:
 
 ```
-https://github.com/TechnicallyArtist/ForgeUnityBridge.git?path=Packages/com.technicallyartist.forge-bridge#0.1.1
+https://github.com/TechnicallyArtist/ForgeUnityBridge.git?path=Packages/com.technicallyartist.forge-bridge#0.2.0
 ```
 
 For local development, Package Manager > Add package from disk: select this
@@ -88,7 +88,18 @@ fail the push. See the
 - [Release checklist](Documentation~/release-checks.md).
 - [Implementation validation](Documentation~/validation.md).
 - [Canonical protocol](https://github.com/TechnicallyArtist/ProceduralMeshDCC/blob/main/Plugins/PROTOCOL.md)
-  lives in Forge's `Plugins/PROTOCOL.md`; this package speaks 1.1.
+  lives in Forge's `Plugins/PROTOCOL.md`; this package speaks 1.2.
 
 All product code is editor-only. Generated content uses native Unity components,
 stock shaders and standalone assets; it has no Forge runtime assembly dependency.
+
+
+## Collision Shape
+
+Forge Collision Shape nodes become native BoxColliders and convex MeshColliders under the
+Forge-owned `Collision` child. The child is rebuilt on every push and removed when collision is
+absent. User colliders outside that child and prefab variants survive refresh. Convex mesh assets
+are saved under `Meshes/Collision`, retain GUIDs, and are pruned when no longer produced or referenced.
+Collision meshes have no renderer or material. A rigged mesh uses rest-pose collision only.
+
+Version 0.2.0 implements protocol 1.2. See [collision validation](Documentation~/collision-validation.md).

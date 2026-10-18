@@ -32,7 +32,7 @@ namespace ForgeBridge.Editor
 
     public static class ForgeProtocol
     {
-        public const string Version = "1.1";
+        public const string Version = "1.2";
         public const int HeaderLimit = 64 * 1024;
         public const int MaximumPayload = 256 * 1024 * 1024;
         internal static readonly UTF8Encoding Utf8 = new UTF8Encoding(false, true);

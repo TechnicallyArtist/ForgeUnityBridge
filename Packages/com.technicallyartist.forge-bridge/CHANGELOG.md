@@ -1,6 +1,13 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 — 2026-10-18
+
+- Import Collision Shape metadata as rotated BoxColliders and convex MeshColliders.
+- Refresh the owned Collision child while preserving user colliders elsewhere and prefab variants.
+- Keep hull mesh GUIDs stable and prune obsolete collision meshes.
+- Validate closed, outward convex hulls with 4–32 finite points.
+- Protocol 1.2; physics module dependency declared explicitly.
+- Collision import and physics regressions pass on Unity 6000.0.40f1 and 6000.4.6f1.
 
 - Share textures by source-image recipe across material slots, preserving texture GUIDs on repeat pushes.
 - Prune unused Forge-owned meshes, materials and textures after the prefab saves; retain referenced assets and user-owned folders.

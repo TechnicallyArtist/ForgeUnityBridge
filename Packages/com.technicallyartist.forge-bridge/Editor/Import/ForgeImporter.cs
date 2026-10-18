@@ -70,9 +70,10 @@ namespace ForgeBridge.Editor.Import
                 {
                     var root = new GameObject(entry.BaseName);
                     SceneManager.MoveGameObjectToScene(root, preview);
-                    var instantiator = new GameObjectInstantiator(gltf, root.transform, logger,
+                    var instantiator = new ForgeInstantiator(gltf, root.transform, logger,
                         new InstantiationSettings { SceneObjectCreation = SceneObjectCreation.Never, Mask = ComponentType.Mesh | ComponentType.Animation });
                     ThrowImportErrors(await gltf.InstantiateMainSceneAsync(instantiator), logger);
+                    var collision = ForgeCollision.Prepare(json, instantiator, root);
                     var renderers = root.GetComponentsInChildren<Renderer>(true);
                     if (renderers.Length == 0) throw new InvalidDataException("The glb contains no renderable mesh.");
                     var meshes = gltf.Meshes?.ToArray();
@@ -98,7 +99,12 @@ namespace ForgeBridge.Editor.Import
                         paths[key] = resolved;
                         return resolved;
                     }
-                    for (int i = 0; i < meshes.Length; i++) Plan("mesh/" + i, folder + "/Meshes/" + entry.BaseName + (i == 0 ? "" : "_" + i) + ".asset");
+                    for (int i = 0; i < meshes.Length; i++)
+                    {
+                        if (collision.MeshKeys.TryGetValue(meshes[i], out string key))
+                            Plan(key, folder + "/Meshes/Collision/" + entry.BaseName + "_Convex_" + key.Substring("mesh/collision/".Length) + ".asset");
+                        else Plan("mesh/" + i, folder + "/Meshes/" + entry.BaseName + (i == 0 ? "" : "_" + i) + ".asset");
+                    }
                     int materialCount = gltf.MaterialCount;
                     var materialKeys = new Dictionary<int, string>();
                     var sourceMaterialIndices = new Dictionary<Material, int>();
@@ -215,9 +221,10 @@ namespace ForgeBridge.Editor.Import
                             var meshMap = new Dictionary<Mesh, Mesh>();
                             for (int i = 0; i < meshes.Length; i++)
                             {
-                                string key = "mesh/" + i;
+                                string key = collision.MeshKeys.TryGetValue(meshes[i], out string collisionKey) ? collisionKey : "mesh/" + i;
                                 var mesh = ForgeAssetWriter.Save(meshes[i], paths[key]); entry.Set(key, mesh); meshMap.Add(meshes[i], mesh);
                             }
+                            collision.AssignSavedMeshes(meshMap);
                             var materialMap = new Dictionary<Material, Material>();
                             var materialIdentities = new Dictionary<Material, string>();
                             Material defaultMaterial = null;
@@ -265,6 +272,7 @@ namespace ForgeBridge.Editor.Import
                                     assignedController, customController, clips, warnings, clipNames);
                                 if (!customController) entry.Set("controller", animator.runtimeAnimatorController);
                             }
+                            ForgeCollision.PreserveUserColliders(entry.Prefab, root);
                             PrefabUtility.SaveAsPrefabAsset(root, prefabPath, out bool saved);
                             if (!saved) throw new IOException("Could not save " + prefabPath);
                             EditorUtility.SetDirty(index);

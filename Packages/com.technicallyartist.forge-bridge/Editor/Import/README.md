@@ -46,3 +46,6 @@ the ownership index to preserve GUIDs, including textures moved by the user.
 Cleanup runs after the prefab saves, materials before their unused textures. Referenced assets
 are retained with a warning; failed deletion never fails a completed push. Only folders created
 and recorded by Forge are removed when empty. User material assignments remain user-owned.
+
+
+`ForgeCollision.cs` interprets protocol 1.2 collision extras before render/material enumeration, validates hulls, assigns saved collision meshes, and preserves colliders outside the owned Collision child.

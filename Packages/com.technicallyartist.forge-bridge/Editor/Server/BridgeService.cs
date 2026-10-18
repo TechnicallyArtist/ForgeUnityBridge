@@ -30,7 +30,7 @@ namespace ForgeBridge.Editor
         public static string ListenerReason { get; private set; } = "starting";
         public static IEnumerable<BridgeSession> Sessions => SessionRows.Values;
         public static event Action Changed;
-        public const string PluginVersion = "0.1.1";
+        public const string PluginVersion = "0.2.0";
         /// <summary>Origins denied since the editor started. SessionState survives domain reloads, not a restart.</summary>
         public static IEnumerable<string> DeniedOrigins => SessionState.GetString(DeniedOriginsKey, "").Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries);
         public static string ListenerState => ListenerPort > 0 ? "listening on 127.0.0.1:" + ListenerPort : "not listening: " + ListenerReason;
