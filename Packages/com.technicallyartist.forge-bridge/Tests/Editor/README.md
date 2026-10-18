@@ -27,3 +27,9 @@ repeat GUIDs, legacy-key migration, shrinking pushes, referenced and user-assign
 and removal of empty folders only when Forge created them.
 
 ForgeUpdateTests covers install-source eligibility, strict versions, busy refusals and a fake Package Manager adapter. ForgeTransportTests exercises post-hello update dispatch, old-header refusal and pre-hello denial over real loopback sockets.
+
+ForgeTransportTests also drives project sync over real sockets: listing, push-project progress and
+outcome around a correlated push, Forge failures, late replies, tabs without the capability (no Forge)
+and disconnects. ForgeSyncImportTests covers the kept `.ta` backup (written once, untouched when
+identical, mismatches refused before writes) and the import-completed event for sent and requested
+pushes, including a failing handler.

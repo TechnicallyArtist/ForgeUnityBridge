@@ -20,3 +20,12 @@ and refusal behavior mirror the Unreal Forge Bridge implementation.
 [Package overview](../../README.md) · [Server](../Server/README.md)
 
 Protocol 1.3 accepts earlier 1.x headers. Welcome advertises plugin.selfUpdate only for an official Git install; update requires its own 1.3 header and no payload. update-started and update-failed correlate with ref. A reconnect welcome confirms successful installation. See the canonical Forge Plugins/PROTOCOL.md.
+
+## Project sync (1.4)
+
+[`ForgeProjectSync.cs`](ForgeProjectSync.cs) builds the Unity → tab requests `list-projects` and
+`push-project` and reads the replies: `project` (one per project), `projects-complete`, and
+`project-status` (`preparing`, `waiting`, `cooking`, `sending`, then `complete` or `failed`). It defines
+the public result types `ForgeProject`, `ForgeProjectList`, `ForgePushProgress` and `ForgePushOutcome`.
+A tab advertises `capabilities: ["project-sync"]` in its hello; requests go only to such a tab. The
+requested push itself is an ordinary `push` carrying `ref`, answered by the usual `result`.

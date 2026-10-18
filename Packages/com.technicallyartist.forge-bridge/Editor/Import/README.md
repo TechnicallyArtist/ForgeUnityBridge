@@ -49,3 +49,8 @@ and recorded by Forge are removed when empty. User material assignments remain u
 
 
 `ForgeCollision.cs` interprets protocol 1.2 collision extras before render/material enumeration, validates hulls, assigns saved collision meshes, and preserves colliders outside the owned Collision child.
+
+`ForgeBackup.cs` reads the 1.4 project backup (the `.ta` archive in an unreferenced bufferView named by
+the push's `backup` header) and refuses a descriptor that does not match the glb before any write. After
+the push commits, it writes `Backup~/<Name>.ta` beside the prefab, leaving an identical file untouched.
+`ForgeImportCompleted.cs` is what `ForgeImporter.ImportCompleted` reports after every successful push.

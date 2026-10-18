@@ -80,7 +80,8 @@ namespace ForgeBridge.Editor.Tests
         [TestCase("1.1", true)]
         [TestCase("1.2", true)]
         [TestCase("1.3", true)]
-        [TestCase("1.4", false)]
+        [TestCase("1.4", true)]
+        [TestCase("1.5", false)]
         [TestCase("2.0", false)]
         [TestCase("1", false)]
         [TestCase("1.0.0", false)]
@@ -439,6 +440,141 @@ namespace ForgeBridge.Editor.Tests
                 await Write(client, ClientFrame(2, ForgeProtocol.Encode(new JObject { ["protocol"] = "1.3", ["type"] = "update", ["id"] = "u", ["version"] = "0.2.2" })));
                 Assert.AreEqual("hello", (string)(await ReadMessage(client))["reason"]);
             }
+        }
+
+        [Test]
+        public async Task ProjectSync_ListsProjectsOfACapableTab()
+        {
+            using (var server = new TestServer())
+            using (var client = await Connect(server))
+            {
+                await SyncHello(client, server);
+                var listing = server.Server.ListProjectsAsync(CancellationToken.None);
+                var request = await ReadMessage(client);
+                Assert.That((string)request["type"], Is.EqualTo("list-projects"));
+                Assert.That((string)request["protocol"], Is.EqualTo("1.4"));
+                var id = (string)request["id"];
+                await Reply(client, id, new JObject { ["type"] = "project", ["project"] = new JObject
+                {
+                    ["id"] = "elf-boy", ["name"] = "Elf Boy", ["folder"] = "Characters / Elves",
+                    ["outputs"] = new JArray(new JObject { ["id"] = "rig/out", ["name"] = "Unity" })
+                } });
+                await Reply(client, id, new JObject { ["type"] = "project", ["project"] = new JObject { ["id"] = "rock", ["name"] = "Rock", ["folder"] = "", ["outputs"] = new JArray() } });
+                await Reply(client, id, new JObject { ["type"] = "projects-complete", ["count"] = 2 });
+                var list = await listing;
+                Assert.That(list.Kind, Is.EqualTo(ForgeSyncOutcomeKind.Succeeded));
+                Assert.That(list.Projects.Select(p => p.Name), Is.EqualTo(new[] { "Elf Boy", "Rock" }));
+                Assert.That(list.Projects[0].Folder, Is.EqualTo("Characters / Elves"));
+                Assert.That(list.Projects[0].Outputs.Single().Id, Is.EqualTo("rig/out"));
+                Assert.That(list.Projects[1].Outputs, Is.Empty);
+            }
+        }
+
+        [Test]
+        public async Task ProjectSync_PushReportsProgressImportsThePushThenTheOutcome()
+        {
+            var imported = new TaskCompletionSource<JObject>(TaskCreationOptions.RunContinuationsAsynchronously);
+            using (var server = new TestServer { Import = (header, _) => { imported.TrySetResult(header); return Task.FromResult(new PushResult { AssetPath = "Assets/Forge/Elf.prefab" }); } })
+            using (var client = await Connect(server))
+            {
+                await SyncHello(client, server);
+                var progress = new ConcurrentQueue<ForgePushProgress>();
+                var pushing = server.Server.PushProjectAsync("elf-boy", "rig/out", progress.Enqueue, CancellationToken.None);
+                var request = await ReadMessage(client);
+                Assert.That((string)request["type"], Is.EqualTo("push-project"));
+                Assert.That((string)request["projectId"], Is.EqualTo("elf-boy"));
+                Assert.That((string)request["nodeId"], Is.EqualTo("rig/out"));
+                var id = (string)request["id"];
+                await Reply(client, id, new JObject { ["type"] = "project-status", ["status"] = "preparing" });
+                await Reply(client, id, new JObject { ["type"] = "project-status", ["status"] = "waiting", ["source"] = "elf.fbx", ["message"] = "Allow source file access" });
+                await Reply(client, id, new JObject { ["type"] = "project-status", ["status"] = "sending" });
+                var push = Push();
+                push["ref"] = id;
+                await Write(client, ClientFrame(2, ForgeProtocol.Encode(push, new byte[] { 1, 2, 3 })));
+                Assert.That((string)(await imported.Task)["ref"], Is.EqualTo(id));
+                Assert.That((bool)(await ReadMessage(client))["ok"], Is.True);
+                Assert.That(pushing.IsCompleted, Is.False, "The push-project outcome waits for Forge's terminal status.");
+                await Reply(client, id, new JObject { ["type"] = "project-status", ["status"] = "complete", ["ok"] = true,
+                    ["assetPath"] = "Assets/Forge/Elf.prefab", ["created"] = false, ["warnings"] = new JArray("cook note") });
+                var outcome = await pushing;
+                Assert.That(outcome.Kind, Is.EqualTo(ForgeSyncOutcomeKind.Succeeded));
+                Assert.That(outcome.AssetPath, Is.EqualTo("Assets/Forge/Elf.prefab"));
+                Assert.That(outcome.Warnings, Is.EqualTo(new[] { "cook note" }));
+                Assert.That(progress.Select(p => p.Status), Is.EqualTo(new[] { "preparing", "waiting", "sending" }));
+                Assert.That(progress.Single(p => p.WaitingForForge).Source, Is.EqualTo("elf.fbx"));
+            }
+        }
+
+        [Test]
+        public async Task ProjectSync_FailedStatusEndsTheRequestWithForgesError()
+        {
+            using (var server = new TestServer())
+            using (var client = await Connect(server))
+            {
+                await SyncHello(client, server);
+                var pushing = server.Server.PushProjectAsync("elf-boy", "missing", null, CancellationToken.None);
+                var id = (string)(await ReadMessage(client))["id"];
+                await Reply(client, id, new JObject { ["type"] = "project-status", ["status"] = "failed", ["error"] = "Unknown Engine Output node: missing." });
+                var outcome = await pushing;
+                Assert.That(outcome.Kind, Is.EqualTo(ForgeSyncOutcomeKind.Failed));
+                Assert.That(outcome.Error, Is.EqualTo("Unknown Engine Output node: missing."));
+                await Reply(client, id, new JObject { ["type"] = "project-status", ["status"] = "failed", ["error"] = "late" });
+                await Write(client, ClientFrame(9, new byte[] { 1 }));
+                Assert.That((await ReadFrame(client)).Item1, Is.EqualTo(10), "A reply nobody waits for is ignored, not a protocol error.");
+            }
+        }
+
+        [Test]
+        public async Task ProjectSync_ATabWithoutTheCapabilityIsNoForge()
+        {
+            using (var server = new TestServer())
+            using (var client = await Connect(server))
+            {
+                await Write(client, ClientFrame(2, ForgeProtocol.Encode(Hello())));
+                await ReadMessage(client);
+                var list = await server.Server.ListProjectsAsync(CancellationToken.None);
+                Assert.That(list.Kind, Is.EqualTo(ForgeSyncOutcomeKind.NoForge));
+                var outcome = await server.Server.PushProjectAsync("p", "n", null, CancellationToken.None);
+                Assert.That(outcome.Kind, Is.EqualTo(ForgeSyncOutcomeKind.NoForge));
+                Assert.That(outcome.Error, Is.EqualTo(ForgeServer.NoForgeMessage));
+            }
+        }
+
+        [Test]
+        public async Task ProjectSync_DisconnectFailsTheWaitingRequest()
+        {
+            using (var server = new TestServer())
+            {
+                var client = await Connect(server);
+                await SyncHello(client, server);
+                var pushing = server.Server.PushProjectAsync("elf-boy", "rig/out", null, CancellationToken.None);
+                await ReadMessage(client);
+                client.Close();
+                var outcome = await pushing;
+                Assert.That(outcome.Kind, Is.EqualTo(ForgeSyncOutcomeKind.Failed));
+                Assert.That(outcome.Error, Does.StartWith("Forge disconnected"));
+            }
+        }
+
+        /// <summary>Hello advertising project sync; returns once the server would send a request to this tab.</summary>
+        private static async Task SyncHello(TcpClient client, TestServer server)
+        {
+            var hello = Hello();
+            hello["protocol"] = "1.2";
+            hello["capabilities"] = new JArray("project-sync", "project-backup");
+            await Write(client, ClientFrame(2, ForgeProtocol.Encode(hello)));
+            Assert.That((string)(await ReadMessage(client))["type"], Is.EqualTo("welcome"));
+            // The connection is marked sync-capable just after its welcome is written.
+            for (var i = 0; i < 100 && !server.Server.HasSyncSession; i++) await Task.Delay(10);
+            Assert.That(server.Server.HasSyncSession, Is.True);
+        }
+
+        private static Task Reply(TcpClient client, string reference, JObject reply)
+        {
+            reply["protocol"] = "1.4";
+            reply["id"] = Guid.NewGuid().ToString("D");
+            reply["ref"] = reference;
+            return Write(client, ClientFrame(2, ForgeProtocol.Encode(reply)));
         }
 
         private static JObject Hello() => new JObject

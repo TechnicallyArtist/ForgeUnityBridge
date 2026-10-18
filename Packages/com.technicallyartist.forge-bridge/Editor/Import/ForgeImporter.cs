@@ -22,6 +22,11 @@ namespace ForgeBridge.Editor.Import
         private static readonly SemaphoreSlim Queue = new SemaphoreSlim(1, 1);
         static ForgeImporter() { BridgeService.ImportAsync = ImportAsync; }
 
+        /// <summary>Raised on the main thread after every successful push, requested or not, before its result is sent.
+        /// A handler that throws adds a warning to the result; the imported assets stay. A handler must not wait for
+        /// another push, since pushes import one at a time.</summary>
+        public static event Action<ForgeImportCompleted> ImportCompleted;
+
         public static async Task<PushResult> ImportAsync(JObject header, byte[] bytes)
         {
             await Queue.WaitAsync();
@@ -39,6 +44,7 @@ namespace ForgeBridge.Editor.Import
             string nodeId = Required(header["object"], "nodeId");
             var pipeline = ForgeMaterials.DetectPipeline();
             JObject json = ForgeGlb.Validate(bytes);
+            byte[] backup = ForgeBackup.Extract(header, json, bytes);
             ForgeEntry entry = ForgeIndex.Find(projectId, nodeId, out ForgeIndex index);
             bool created = entry?.Prefab == null;
             if (entry == null) entry = new ForgeEntry { ProjectId = projectId, NodeId = nodeId, BaseName = ForgeIndex.SafeName(Required(header["target"], "assetName")) };
@@ -323,6 +329,22 @@ namespace ForgeBridge.Editor.Import
                     EditorUtility.SetDirty(index);
                     try { ForgeAssetWriter.SaveChanges(new[] { indexPath }); }
                     catch (Exception error) { warnings.Add("Could not save cleanup changes to the Forge index: " + error.Message); }
+                    string backupPath = null;
+                    if (backup != null)
+                    {
+                        try { backupPath = ForgeBackup.Write(Path.GetDirectoryName(prefabPath).Replace('\\', '/'), entry.BaseName, backup); }
+                        catch (Exception error) when (error is IOException || error is UnauthorizedAccessException) { warnings.Add("Could not keep the project backup: " + error.Message); }
+                    }
+                    var savedAnimator = entry.Prefab.GetComponent<Animator>();
+                    RaiseImportCompleted(new ForgeImportCompleted
+                    {
+                        ProjectId = projectId, NodeId = nodeId, RequestId = ForgeProtocol.String(header, "ref"),
+                        AssetPath = prefabPath, Created = created, Prefab = entry.Prefab,
+                        Meshes = paths.Keys.Where(k => k.StartsWith("mesh/", StringComparison.Ordinal) && !k.StartsWith("mesh/collision/", StringComparison.Ordinal))
+                            .Select(k => entry.Get<Mesh>(k)).ToList(),
+                        Clips = clips, Controller = savedAnimator != null ? savedAnimator.runtimeAnimatorController : null,
+                        BackupPath = backupPath, Warnings = warnings,
+                    });
                     return new PushResult { AssetPath = prefabPath, Created = created, Warnings = warnings };
                 }
                 finally
@@ -330,6 +352,20 @@ namespace ForgeBridge.Editor.Import
                     EditorSceneManager.ClosePreviewScene(preview);
                     foreach (var material in prepared.Values) material.Dispose();
                     foreach (Object item in transient) if (item != null) Object.DestroyImmediate(item);
+                }
+            }
+        }
+
+        private static void RaiseImportCompleted(ForgeImportCompleted completed)
+        {
+            if (ImportCompleted == null) return;
+            foreach (Action<ForgeImportCompleted> handler in ImportCompleted.GetInvocationList())
+            {
+                try { handler(completed); }
+                catch (Exception error)
+                {
+                    Debug.LogException(error);
+                    completed.Warnings.Add("An import-completed handler failed: " + error.Message);
                 }
             }
         }

@@ -3,7 +3,9 @@
 [`ForgeWindow.cs`](ForgeWindow.cs) provides **Window ▸ Forge**: listener state, connected sessions,
 the Forge project each names, elapsed connection time, approved origins with **Revoke**, origins
 denied this editor session with **Clear**, and recent events. Revoke immediately closes that origin's sessions. The window links to settings and can
-restart the listener after a port conflict.
+restart the listener after a port conflict. Its **Project sync** section lists the connected
+Forge's projects and their Engine Output nodes and pushes one on request, showing progress, a
+waiting-for-Forge prompt and the outcome; sessions that support sync are marked.
 
 [`BridgeSettings.cs`](BridgeSettings.cs) provides **Project Settings ▸ Forge**. The Forge folder
 (default `Assets/Forge`), first/last listener port (7042–7049), and payload cap (1–256 MiB) are saved

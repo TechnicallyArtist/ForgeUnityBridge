@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -19,6 +21,8 @@ namespace ForgeBridge.Editor
         public DateTime ConnectedAt = DateTime.UtcNow;
         public bool Connected = true;
         public string CloseReason;
+        /// <summary>The tab advertised `project-sync` in its hello, so Unity may list its projects and request pushes.</summary>
+        public bool ProjectSync;
     }
 
     /// <summary>Owns socket workers only; all callbacks are dispatched by BridgeService.</summary>
@@ -119,6 +123,31 @@ namespace ForgeBridge.Editor
             }
         }
 
+        public const string NoForgeMessage = "No Forge tab that supports project sync is connected. Open Forge in a browser and connect it to this Unity project.";
+
+        /// <summary>Lists the projects of the most recently connected tab that supports project sync.</summary>
+        public Task<ForgeProjectList> ListProjectsAsync(CancellationToken cancellation)
+        {
+            var connection = SyncConnection();
+            if (connection == null) return Task.FromResult(new ForgeProjectList { Kind = ForgeSyncOutcomeKind.NoForge, Error = NoForgeMessage });
+            return connection.ListProjectsAsync(cancellation);
+        }
+
+        /// <summary>Asks the most recently connected tab that supports project sync to cook and push one Engine Output.
+        /// <paramref name="progress"/> runs on a socket worker for each non-terminal status.</summary>
+        public Task<ForgePushOutcome> PushProjectAsync(string projectId, string nodeId, Action<ForgePushProgress> progress, CancellationToken cancellation)
+        {
+            var connection = SyncConnection();
+            if (connection == null) return Task.FromResult(new ForgePushOutcome { Kind = ForgeSyncOutcomeKind.NoForge, Error = NoForgeMessage });
+            return connection.PushProjectAsync(projectId, nodeId, progress, cancellation);
+        }
+
+        /// <summary>True while a tab that advertised project sync is connected and welcomed.</summary>
+        public bool HasSyncSession => SyncConnection() != null;
+
+        private Connection SyncConnection() =>
+            connections.Values.Where(c => c.ProjectSync).OrderByDescending(c => c.ConnectedAt).FirstOrDefault();
+
         public const string OriginDeniedMessage = "Denied in Unity. To be asked again, clear it under Denied origins in Window > Forge.";
 
         public void Revoke(string origin)
@@ -155,8 +184,11 @@ namespace ForgeBridge.Editor
             private int unansweredPings;
             private int importing;
             private int updating;
+            private readonly ConcurrentDictionary<string, PendingRequest> requests = new ConcurrentDictionary<string, PendingRequest>();
             public string Id { get; } = Guid.NewGuid().ToString("D");
             public string Origin { get; private set; }
+            public volatile bool ProjectSync;
+            public DateTime ConnectedAt => session.ConnectedAt;
 
             public Connection(ForgeServer owner, TcpClient client, int port, CancellationToken cancellation)
             {
@@ -197,6 +229,7 @@ namespace ForgeBridge.Editor
                     Dispose();
                     if (heartbeat != null) await heartbeat.ConfigureAwait(false);
                     owner.connections.TryRemove(Id, out _);
+                    FailRequests("Forge disconnected: " + (session.CloseReason ?? "connection closed"));
                     if (upgraded)
                     {
                         session.Connected = false;
@@ -345,12 +378,14 @@ namespace ForgeBridge.Editor
                     if (problem != null) { await DenyAsync("hello", problem, reference).ConfigureAwait(false); return; }
                     helloSeen = true;
                     session.Project = ForgeProtocol.String(header, "project.name");
+                    session.ProjectSync = ForgeProjectSync.AdvertisesSync(header);
                     session.AppVersion = ForgeProtocol.String(header, "app.version");
                     NotifySession();
                     var response = (JObject)owner.welcome.DeepClone();
                     response["id"] = Guid.NewGuid().ToString("D");
                     response["ref"] = reference;
                     await SendAsync(response).ConfigureAwait(false);
+                    ProjectSync = session.ProjectSync;
                     return;
                 }
                 if (!helloSeen) { await DenyAsync("hello", "hello must be the first message", reference).ConfigureAwait(false); return; }
@@ -363,6 +398,11 @@ namespace ForgeBridge.Editor
                         await SendAsync(failed).ConfigureAwait(false);
                     }
                     else _ = UpdateAsync(message);
+                    return;
+                }
+                if (Array.IndexOf(ForgeProjectSync.ReplyTypes, type) >= 0)
+                {
+                    RouteReply(header);
                     return;
                 }
                 if (type != "push") throw new BridgeProtocolException(1008, "unexpected message type " + type);
@@ -379,6 +419,87 @@ namespace ForgeBridge.Editor
                 }
                 // Continue reading control frames while Unity imports. One outstanding import per session bounds the queue.
                 _ = ImportAsync(message);
+            }
+
+            public Task<ForgeProjectList> ListProjectsAsync(CancellationToken cancellation)
+            {
+                var projects = new List<ForgeProject>();
+                return RequestAsync(ForgeProjectSync.ListProjects(), reply =>
+                {
+                    var type = ForgeProtocol.String(reply, "type");
+                    if (type == "project") projects.Add(ForgeProjectSync.Project(reply));
+                    else if (type == "projects-complete") return new ForgeProjectList { Kind = ForgeSyncOutcomeKind.Succeeded, Projects = projects };
+                    else if (type == "project-status" && ForgeProjectSync.IsTerminal(reply))
+                        return new ForgeProjectList { Kind = ForgeSyncOutcomeKind.Failed, Error = ForgeProjectSync.Outcome(reply).Error ?? "Forge ended the project list without projects-complete." };
+                    return null;
+                }, reason => new ForgeProjectList { Kind = ForgeSyncOutcomeKind.Failed, Error = reason }, cancellation);
+            }
+
+            public Task<ForgePushOutcome> PushProjectAsync(string projectId, string nodeId, Action<ForgePushProgress> progress, CancellationToken cancellation)
+            {
+                return RequestAsync(ForgeProjectSync.PushProject(projectId, nodeId), reply =>
+                {
+                    if (ForgeProtocol.String(reply, "type") != "project-status") return null;
+                    if (ForgeProjectSync.IsTerminal(reply)) return ForgeProjectSync.Outcome(reply);
+                    progress?.Invoke(ForgeProjectSync.Progress(reply));
+                    return null;
+                }, reason => new ForgePushOutcome { Kind = ForgeSyncOutcomeKind.Failed, Error = reason }, cancellation);
+            }
+
+            /// <summary>Sends a request and completes with the first reply <paramref name="reply"/> turns into a result;
+            /// replies it answers with null are progress. A disconnect completes it through <paramref name="failure"/>.</summary>
+            private async Task<T> RequestAsync<T>(JObject request, Func<JObject, T> reply, Func<string, T> failure, CancellationToken cancellation) where T : class
+            {
+                var id = ForgeProtocol.String(request, "id");
+                var completion = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
+                requests[id] = new PendingRequest
+                {
+                    Reply = header =>
+                    {
+                        var result = reply(header);
+                        if (result == null) return false;
+                        completion.TrySetResult(result);
+                        return true;
+                    },
+                    Fail = reason => completion.TrySetResult(failure(reason)),
+                };
+                using (cancellation.Register(() => { requests.TryRemove(id, out _); completion.TrySetCanceled(); }))
+                {
+                    // A disconnect before this point has already failed every request it knew of.
+                    if (lifetime.IsCancellationRequested && requests.TryRemove(id, out _)) return failure("Forge disconnected.");
+                    try { await SendAsync(request).ConfigureAwait(false); }
+                    catch (Exception error) when (error is IOException || error is SocketException || error is ObjectDisposedException || error is OperationCanceledException)
+                    {
+                        requests.TryRemove(id, out _);
+                        cancellation.ThrowIfCancellationRequested();
+                        return failure("Forge disconnected before the request was sent.");
+                    }
+                    return await completion.Task.ConfigureAwait(false);
+                }
+            }
+
+            private void RouteReply(JObject header)
+            {
+                var reference = ForgeProtocol.String(header, "ref");
+                if (reference == null || !requests.TryGetValue(reference, out var pending))
+                {
+                    owner.log("ignored " + ForgeProtocol.String(header, "type") + " for a request that is no longer waiting", false);
+                    return;
+                }
+                if (pending.Reply(header)) requests.TryRemove(reference, out _);
+            }
+
+            private void FailRequests(string reason)
+            {
+                foreach (var id in requests.Keys.ToArray())
+                    if (requests.TryRemove(id, out var pending)) pending.Fail(reason);
+            }
+
+            private sealed class PendingRequest
+            {
+                /// <summary>Returns true when the reply ends the request.</summary>
+                public Func<JObject, bool> Reply;
+                public Action<string> Fail;
             }
 
             private async Task UpdateAsync(ForgeMessage message)
@@ -504,7 +625,8 @@ namespace ForgeBridge.Editor
                 owner.sessionChanged(new BridgeSession
                 {
                     Id = session.Id, Origin = session.Origin, Project = session.Project, AppVersion = session.AppVersion,
-                    ConnectedAt = session.ConnectedAt, Connected = session.Connected, CloseReason = session.CloseReason
+                    ConnectedAt = session.ConnectedAt, Connected = session.Connected, CloseReason = session.CloseReason,
+                    ProjectSync = session.ProjectSync
                 });
             }
 

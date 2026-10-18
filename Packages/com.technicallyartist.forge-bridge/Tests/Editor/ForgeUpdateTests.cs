@@ -51,7 +51,8 @@ namespace ForgeBridge.Editor.Tests
             Assert.That(BridgeUpdater.Problem(Request(), 0, "0.2.1", true, false, false, true), Does.Contain("importing"));
             Assert.IsTrue(ForgeProtocol.AcceptsVersion("1.2"));
             Assert.IsTrue(ForgeProtocol.AcceptsVersion("1.3"));
-            Assert.IsFalse(ForgeProtocol.AcceptsVersion("1.4"));
+            Assert.IsTrue(ForgeProtocol.AcceptsVersion("1.4"));
+            Assert.IsFalse(ForgeProtocol.AcceptsVersion("1.5"));
         }
 
         [Test]

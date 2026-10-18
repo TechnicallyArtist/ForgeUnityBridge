@@ -38,3 +38,13 @@ of leaving the tab waiting for a result.
 ## Bridge updates (1.3)
 
 BridgeUpdater validates the official Git source and strict newer version, then invokes Package Manager on the main thread. BridgeService shares the import gate so updates refuse while a push is importing and subsequent pushes wait for package resolution. ForgeServer dispatches updates only after hello, keeps processing pings, and bounds each session to one pending update.
+
+## Project sync (1.4)
+
+[`ForgeSync.cs`](ForgeSync.cs) is the public entry point for editor code. It sends requests to the most
+recently connected tab whose hello advertised `project-sync`, returns results on the main thread and
+records each request and outcome in Window > Forge. Listing times out after 30 s; a push has no overall
+timeout because Forge may be waiting for the user to grant a source file, and is cancelled by token.
+`ForgeServer` correlates replies to requests by `ref` on each connection; progress replies keep a request
+open, a terminal one ends it, a reply nobody waits for is logged and ignored, and a disconnect fails every
+waiting request with the close reason.

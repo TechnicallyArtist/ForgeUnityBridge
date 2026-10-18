@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.0 — 2026-10-19
+
+- Protocol 1.4 project sync: `ForgeSync.ListProjectsAsync` lists the connected Forge's projects with their
+  Engine Output nodes; `ForgeSync.RequestPushAsync` asks Forge to cook and push one, reporting progress
+  (including waiting for a source-file grant in Forge) and pushed / failed / no Forge connected.
+- Each 1.4 push's project backup is kept as `Backup~/<Name>.ta` beside the output, outside Unity's import.
+- `ForgeImporter.ImportCompleted` fires once per successful push, requested or not, so a game can
+  post-process the imported prefab, meshes and clips.
+- Window > Forge lists Forge projects and pushes one by hand; sessions show whether they support sync.
+- Pushes from Forge tabs on older protocols import as before.
+
 ## 0.2.1 — 2026-10-18
 
 - Protocol 1.3: approved Forge tabs can update official Git installs; busy editors and local/fork installs refuse with a reason. Window > Forge records requests and failures.

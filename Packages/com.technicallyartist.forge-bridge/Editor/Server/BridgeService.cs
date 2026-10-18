@@ -30,7 +30,9 @@ namespace ForgeBridge.Editor
         public static string ListenerReason { get; private set; } = "starting";
         public static IEnumerable<BridgeSession> Sessions => SessionRows.Values;
         public static event Action Changed;
-        public const string PluginVersion = "0.2.1";
+        public const string PluginVersion = "0.3.0";
+        /// <summary>The running listener, for ForgeSync's requests; null while stopped.</summary>
+        internal static ForgeServer Server => server;
         /// <summary>Origins denied since the editor started. SessionState survives domain reloads, not a restart.</summary>
         public static IEnumerable<string> DeniedOrigins => SessionState.GetString(DeniedOriginsKey, "").Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries);
         public static string ListenerState => ListenerPort > 0 ? "listening on 127.0.0.1:" + ListenerPort : "not listening: " + ListenerReason;
@@ -202,6 +204,9 @@ namespace ForgeBridge.Editor
                 return await completion.Task.ConfigureAwait(false);
             }
         }
+
+        /// <summary>Runs <paramref name="action"/> on the editor main thread.</summary>
+        internal static void Post(Action action) => MainThreadQueue.Enqueue(action);
 
         private static void EnqueueCurrent(int current, Action action) => MainThreadQueue.Enqueue(() => { if (generation == current) action(); });
 

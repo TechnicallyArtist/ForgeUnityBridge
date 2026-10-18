@@ -23,7 +23,7 @@ refresh. Git must be installed for Unity to fetch it. To install by hand, use
 Package Manager > Add package from git URL:
 
 ```
-https://github.com/TechnicallyArtist/ForgeUnityBridge.git?path=Packages/com.technicallyartist.forge-bridge#0.2.1
+https://github.com/TechnicallyArtist/ForgeUnityBridge.git?path=Packages/com.technicallyartist.forge-bridge#0.3.0
 ```
 
 For local development, Package Manager > Add package from disk: select this
@@ -41,6 +41,7 @@ Assets/Forge/<Folder>/
   Materials/<Name>_<Slot>.mat
   Textures/<Name>_<Slot>_<Map>.png
   Animations/<Name>_<Clip>.anim, <Name>.controller
+  Backup~/<Name>.ta          the Forge project behind the output (protocol 1.4 pushes)
 ```
 
 Additional meshes retain their own assets and hierarchy. No glb remains in
@@ -88,7 +89,7 @@ fail the push. See the
 - [Release checklist](Documentation~/release-checks.md).
 - [Implementation validation](Documentation~/validation.md).
 - [Canonical protocol](https://github.com/TechnicallyArtist/ProceduralMeshDCC/blob/main/Plugins/PROTOCOL.md)
-  lives in Forge's `Plugins/PROTOCOL.md`; this package speaks 1.2.
+  lives in Forge's `Plugins/PROTOCOL.md`; this package speaks 1.4.
 
 All product code is editor-only. Generated content uses native Unity components,
 stock shaders and standalone assets; it has no Forge runtime assembly dependency.
@@ -107,3 +108,30 @@ Version 0.2.0 implements protocol 1.2. See [collision validation](Documentation~
 ## Updating from Forge
 
 Official Git installs advertise self-update capability to Forge. From version 0.2.1, Forge can request a newer release with one click. Unity refuses while playing, compiling or importing; requests and failures appear in Window > Forge. Local, embedded and fork packages are preserved. The bridge never accepts a package URL from the browser.
+
+## Project sync (0.3.0, protocol 1.4)
+
+A Forge tab that advertises `project-sync` stays connected while Unity is open, so editor code can
+pull from Forge instead of waiting for **Send to Unity**:
+
+```csharp
+ForgeProjectList list = await ForgeSync.ListProjectsAsync();          // id, name, folder, Engine Outputs
+ForgePushOutcome done = await ForgeSync.RequestPushAsync(projectId, nodeId,
+    step => Debug.Log(step.WaitingForForge ? "allow " + step.Source + " in Forge" : step.Status));
+```
+
+Both report **no Forge connected** (`ForgeSyncOutcomeKind.NoForge`), a Forge error (`Failed`, with
+Forge's reason) or success. A requested push goes through the normal importer, so it refreshes the
+same assets in place. `waiting` means Forge shows a dialog asking for access to a source file; the
+push resumes after Allow there. **Window > Forge > Project sync** lists the projects and pushes one by
+hand.
+
+`ForgeImporter.ImportCompleted` is raised on the main thread after **every** successful push, requested
+or sent from Forge, with the project and node ids, the prefab, render meshes, clips, controller and
+backup path, before the result goes back to Forge. A handler's warnings, or its exception, reach the
+Forge tab as warnings; the import stays.
+
+Every 1.4 push carries the project's `.ta` archive (graph plus every source it needs). The bridge keeps
+it as `Backup~/<Name>.ta` beside the prefab. Unity never imports `~` folders, so the whole output folder
+can be committed (track `*.ta` with Git LFS) and the project restored in Forge by importing that file.
+An unchanged archive leaves the file untouched.
